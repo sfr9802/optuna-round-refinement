@@ -1,0 +1,14 @@
+{
+  "name": "optuna-round-refinement",
+  "version": "0.1.0",
+  "description": "Round-level Optuna hyperparameter refinement with an LLM-in-the-outer-loop. Optuna samples trials; the LLM analyses a finished round's bundle and proposes the next round's configuration. Model-agnostic, schema-validated, with explicit provenance.",
+  "author": {
+    "name": "sfr9802",
+    "url": "https://github.com/sfr9802"
+  },
+  "homepage": "https://github.com/sfr9802/optuna-round-refinement",
+  "repository": "https://github.com/sfr9802/optuna-round-refinement",
+  "license": "MIT",
+  "keywords": ["optuna", "hpo", "hyperparameter", "llm", "round-level", "rag"],
+  "skills": ["./"]
+}

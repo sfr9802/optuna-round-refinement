@@ -1,0 +1,218 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.org/optuna-round-refinement/study_bundle.schema.json",
+  "title": "StudyBundle",
+  "description": "Summary of one completed round of an Optuna study. This is the ONLY input the LLM analyst is allowed to read.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "round_id",
+    "study_id",
+    "optuna",
+    "objective",
+    "search_space",
+    "n_trials",
+    "trials",
+    "best_trial",
+    "statistics"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "1.0"
+    },
+    "round_id": {
+      "type": "string",
+      "description": "Human-readable round identifier, e.g. 'round_01'.",
+      "pattern": "^round_[0-9]{2,}$"
+    },
+    "study_id": {
+      "type": "string",
+      "description": "Optuna study_name for this round."
+    },
+    "parent_config_hash": {
+      "type": ["string", "null"],
+      "description": "sha256 of the config that produced this round. Null only for round 1.",
+      "pattern": "^([a-f0-9]{64}|)$"
+    },
+    "optuna": {
+      "type": "object",
+      "required": ["version", "sampler", "pruner"],
+      "additionalProperties": false,
+      "properties": {
+        "version": { "type": "string" },
+        "sampler": {
+          "type": "object",
+          "required": ["type", "params"],
+          "properties": {
+            "type": { "type": "string", "examples": ["TPESampler", "CmaEsSampler", "RandomSampler"] },
+            "params": { "type": "object" },
+            "seed": { "type": ["integer", "null"] }
+          }
+        },
+        "pruner": {
+          "type": "object",
+          "required": ["type", "params"],
+          "properties": {
+            "type": { "type": "string", "examples": ["MedianPruner", "HyperbandPruner", "NopPruner"] },
+            "params": { "type": "object" }
+          }
+        }
+      }
+    },
+    "objective": {
+      "type": "object",
+      "required": ["name", "direction"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string" },
+        "direction": { "type": "string", "enum": ["minimize", "maximize"] },
+        "multi_objective": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name", "direction"],
+            "properties": {
+              "name": { "type": "string" },
+              "direction": { "type": "string", "enum": ["minimize", "maximize"] }
+            }
+          }
+        }
+      }
+    },
+    "search_space": {
+      "type": "object",
+      "description": "Frozen search space used for this round.",
+      "minProperties": 1,
+      "additionalProperties": { "$ref": "#/$defs/param" }
+    },
+    "fixed_params": {
+      "type": "object",
+      "description": "Params held constant this round.",
+      "additionalProperties": { "type": ["number", "integer", "string", "boolean"] }
+    },
+    "n_trials": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "trials": {
+      "type": "array",
+      "description": "Summary of each trial. For large rounds, keep only top-k + a random sample; do not dump full per-step metrics.",
+      "items": { "$ref": "#/$defs/trial_summary" }
+    },
+    "best_trial": { "$ref": "#/$defs/trial_summary" },
+    "statistics": {
+      "type": "object",
+      "required": ["n_complete", "n_pruned", "n_failed"],
+      "additionalProperties": false,
+      "properties": {
+        "n_complete": { "type": "integer", "minimum": 0 },
+        "n_pruned":   { "type": "integer", "minimum": 0 },
+        "n_failed":   { "type": "integer", "minimum": 0 },
+        "best_value": { "type": ["number", "null"] },
+        "median_value": { "type": ["number", "null"] },
+        "mean_value": { "type": ["number", "null"] },
+        "std_value":  { "type": ["number", "null"] },
+        "quantiles": {
+          "type": "object",
+          "properties": {
+            "p10": { "type": "number" },
+            "p25": { "type": "number" },
+            "p50": { "type": "number" },
+            "p75": { "type": "number" },
+            "p90": { "type": "number" }
+          }
+        },
+        "boundary_hits": {
+          "type": "object",
+          "description": "Per-param count of trials that landed at the low or high boundary.",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "low":  { "type": "integer", "minimum": 0 },
+              "high": { "type": "integer", "minimum": 0 }
+            }
+          }
+        }
+      }
+    },
+    "param_importances": {
+      "type": "object",
+      "description": "Optuna param importance (e.g. fANOVA). Param name → importance in [0, 1].",
+      "additionalProperties": { "type": "number", "minimum": 0, "maximum": 1 }
+    },
+    "pareto_front": {
+      "type": "array",
+      "description": "Populated only for multi-objective studies.",
+      "items": { "$ref": "#/$defs/trial_summary" }
+    },
+    "clusters": {
+      "type": "array",
+      "description": "Optional: analyst-friendly clusters of top trials (e.g. from kmeans on normalised params).",
+      "items": {
+        "type": "object",
+        "required": ["label", "trial_numbers"],
+        "properties": {
+          "label": { "type": "string" },
+          "trial_numbers": { "type": "array", "items": { "type": "integer" } },
+          "center": { "type": "object" }
+        }
+      }
+    },
+    "notes": {
+      "type": "string",
+      "description": "Free-form operator notes. No raw data or PII."
+    }
+  },
+  "$defs": {
+    "param": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["type", "low", "high"],
+          "additionalProperties": false,
+          "properties": {
+            "type": { "type": "string", "enum": ["float", "int"] },
+            "low":  { "type": "number" },
+            "high": { "type": "number" },
+            "step": { "type": ["number", "null"] },
+            "log":  { "type": "boolean", "default": false }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["type", "choices"],
+          "additionalProperties": false,
+          "properties": {
+            "type": { "type": "string", "const": "categorical" },
+            "choices": {
+              "type": "array",
+              "minItems": 1,
+              "items": { "type": ["string", "number", "boolean", "null"] }
+            }
+          }
+        }
+      ]
+    },
+    "trial_summary": {
+      "type": "object",
+      "required": ["number", "state", "params"],
+      "additionalProperties": false,
+      "properties": {
+        "number": { "type": "integer", "minimum": 0 },
+        "state":  { "type": "string", "enum": ["COMPLETE", "PRUNED", "FAIL", "RUNNING", "WAITING"] },
+        "value":  { "type": ["number", "null"] },
+        "values": {
+          "type": "array",
+          "description": "Multi-objective values.",
+          "items": { "type": "number" }
+        },
+        "params": { "type": "object" },
+        "datetime_start":    { "type": ["string", "null"], "format": "date-time" },
+        "datetime_complete": { "type": ["string", "null"], "format": "date-time" },
+        "user_attrs": { "type": "object" }
+      }
+    }
+  }
+}

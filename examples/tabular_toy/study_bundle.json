@@ -1,0 +1,99 @@
+{
+  "schema_version": "1.0",
+  "round_id": "round_01",
+  "study_id": "tabular_toy_round_01",
+  "parent_config_hash": null,
+  "optuna": {
+    "version": "3.6.1",
+    "sampler": {
+      "type": "TPESampler",
+      "params": { "n_startup_trials": 5, "multivariate": true, "group": true },
+      "seed": 42
+    },
+    "pruner": {
+      "type": "MedianPruner",
+      "params": { "n_startup_trials": 5, "n_warmup_steps": 5 }
+    }
+  },
+  "objective": {
+    "name": "val_auc",
+    "direction": "maximize"
+  },
+  "search_space": {
+    "hidden_units":   { "type": "categorical", "choices": [64, 128, 256, 512] },
+    "num_layers":     { "type": "int",         "low": 1,        "high": 4 },
+    "dropout":        { "type": "float",       "low": 0.0,      "high": 0.5 },
+    "learning_rate":  { "type": "float",       "low": 1.0e-4,   "high": 1.0e-2, "log": true },
+    "batch_size":     { "type": "categorical", "choices": [16, 32, 64, 128] },
+    "optimizer":      { "type": "categorical", "choices": ["adam", "adamw"] },
+    "activation":     { "type": "categorical", "choices": ["relu", "gelu"] }
+  },
+  "fixed_params": {
+    "max_epochs": 20,
+    "weight_decay": 0.0001
+  },
+  "n_trials": 20,
+  "trials": [
+    { "number": 0,  "state": "COMPLETE", "value": 0.9772, "params": { "hidden_units": 64,  "num_layers": 2, "dropout": 0.20, "learning_rate": 0.0030, "batch_size": 32,  "optimizer": "adam",  "activation": "relu" }, "user_attrs": { "secondary": { "val_accuracy": 0.9386, "train_time_s": 2.14, "n_params": 2113 } } },
+    { "number": 2,  "state": "PRUNED",   "value": null,   "params": { "hidden_units": 64,  "num_layers": 1, "dropout": 0.45, "learning_rate": 0.0080, "batch_size": 16,  "optimizer": "adam",  "activation": "relu" }, "user_attrs": {} },
+    { "number": 3,  "state": "COMPLETE", "value": 0.9815, "params": { "hidden_units": 128, "num_layers": 1, "dropout": 0.30, "learning_rate": 0.0010, "batch_size": 16,  "optimizer": "adam",  "activation": "gelu" }, "user_attrs": { "secondary": { "val_accuracy": 0.9474, "train_time_s": 2.88, "n_params": 4097 } } },
+    { "number": 4,  "state": "COMPLETE", "value": 0.9821, "params": { "hidden_units": 256, "num_layers": 2, "dropout": 0.25, "learning_rate": 0.0008, "batch_size": 128, "optimizer": "adam",  "activation": "relu" }, "user_attrs": { "secondary": { "val_accuracy": 0.9474, "train_time_s": 1.22, "n_params": 73985 } } },
+    { "number": 7,  "state": "COMPLETE", "value": 0.9978, "params": { "hidden_units": 256, "num_layers": 2, "dropout": 0.15, "learning_rate": 0.0015, "batch_size": 32,  "optimizer": "adamw", "activation": "gelu" }, "user_attrs": { "secondary": { "val_accuracy": 0.9825, "train_time_s": 2.41, "n_params": 73985 } } },
+    { "number": 9,  "state": "COMPLETE", "value": 0.9928, "params": { "hidden_units": 256, "num_layers": 3, "dropout": 0.05, "learning_rate": 0.0025, "batch_size": 64,  "optimizer": "adamw", "activation": "relu" }, "user_attrs": { "secondary": { "val_accuracy": 0.9649, "train_time_s": 1.86, "n_params": 139777 } } },
+    { "number": 11, "state": "FAIL",     "value": null,   "params": { "hidden_units": 512, "num_layers": 4, "dropout": 0.50, "learning_rate": 0.0100, "batch_size": 16,  "optimizer": "adamw", "activation": "relu" }, "user_attrs": {} },
+    { "number": 12, "state": "COMPLETE", "value": 0.9965, "params": { "hidden_units": 256, "num_layers": 3, "dropout": 0.10, "learning_rate": 0.0018, "batch_size": 32,  "optimizer": "adamw", "activation": "gelu" }, "user_attrs": { "secondary": { "val_accuracy": 0.9737, "train_time_s": 2.61, "n_params": 139777 } } },
+    { "number": 14, "state": "PRUNED",   "value": null,   "params": { "hidden_units": 64,  "num_layers": 4, "dropout": 0.48, "learning_rate": 0.0001, "batch_size": 128, "optimizer": "adam",  "activation": "gelu" }, "user_attrs": {} },
+    { "number": 15, "state": "COMPLETE", "value": 0.9958, "params": { "hidden_units": 512, "num_layers": 2, "dropout": 0.20, "learning_rate": 0.0012, "batch_size": 64,  "optimizer": "adamw", "activation": "gelu" }, "user_attrs": { "secondary": { "val_accuracy": 0.9737, "train_time_s": 1.93, "n_params": 279041 } } },
+    { "number": 17, "state": "COMPLETE", "value": 0.9852, "params": { "hidden_units": 128, "num_layers": 3, "dropout": 0.35, "learning_rate": 0.0006, "batch_size": 16,  "optimizer": "adamw", "activation": "relu" }, "user_attrs": { "secondary": { "val_accuracy": 0.9474, "train_time_s": 3.02, "n_params": 37121 } } },
+    { "number": 18, "state": "COMPLETE", "value": 0.9941, "params": { "hidden_units": 128, "num_layers": 2, "dropout": 0.15, "learning_rate": 0.0020, "batch_size": 32,  "optimizer": "adamw", "activation": "gelu" }, "user_attrs": { "secondary": { "val_accuracy": 0.9649, "train_time_s": 2.31, "n_params": 20609 } } }
+  ],
+  "best_trial": {
+    "number": 7,
+    "state": "COMPLETE",
+    "value": 0.9978,
+    "params": {
+      "hidden_units": 256,
+      "num_layers": 2,
+      "dropout": 0.15,
+      "learning_rate": 0.0015,
+      "batch_size": 32,
+      "optimizer": "adamw",
+      "activation": "gelu"
+    },
+    "user_attrs": {
+      "secondary": { "val_accuracy": 0.9825, "train_time_s": 2.41, "n_params": 73985 }
+    }
+  },
+  "statistics": {
+    "n_complete": 16,
+    "n_pruned": 3,
+    "n_failed": 1,
+    "best_value": 0.9978,
+    "median_value": 0.9862,
+    "mean_value": 0.9869,
+    "std_value": 0.0070,
+    "quantiles": { "p10": 0.9781, "p25": 0.9815, "p50": 0.9862, "p75": 0.9935, "p90": 0.9962 },
+    "boundary_hits": {
+      "num_layers":    { "low": 3, "high": 3 },
+      "dropout":       { "low": 0, "high": 2 },
+      "learning_rate": { "low": 1, "high": 1 }
+    }
+  },
+  "param_importances": {
+    "learning_rate": 0.32,
+    "optimizer":     0.22,
+    "hidden_units":  0.16,
+    "dropout":       0.13,
+    "activation":    0.09,
+    "num_layers":    0.06,
+    "batch_size":    0.02
+  },
+  "clusters": [
+    {
+      "label": "adamw + gelu, hidden_units>=128, lr in [1.2e-3, 2.0e-3]",
+      "trial_numbers": [7, 12, 15, 18],
+      "center": { "optimizer": "adamw", "activation": "gelu", "hidden_units": 256, "learning_rate": 0.0016 }
+    }
+  ],
+  "notes": "Illustrative sample bundle for the tabular_toy example. 20 trials; top-5 plus a sample of mid/pruned/failed trials shown. Numbers are hand-crafted to exercise the schema — an actual run of train_eval.py will produce different values."
+}

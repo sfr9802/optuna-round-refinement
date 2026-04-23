@@ -1,0 +1,11 @@
+# Generated round / study outputs — examples may write here when run.
+**/run_output/
+**/_run/
+**/generated/
+
+# Python build + test caches
+__pycache__/
+.pytest_cache/
+.mypy_cache/
+.venv/
+*.pyc

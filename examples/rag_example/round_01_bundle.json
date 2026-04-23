@@ -1,0 +1,84 @@
+{
+  "schema_version": "1.0",
+  "round_id": "round_01",
+  "study_id": "rag_quality_round_01",
+  "parent_config_hash": null,
+  "optuna": {
+    "version": "3.6.1",
+    "sampler": {
+      "type": "TPESampler",
+      "params": { "n_startup_trials": 10, "multivariate": true, "group": true },
+      "seed": 42
+    },
+    "pruner": {
+      "type": "MedianPruner",
+      "params": { "n_startup_trials": 5, "n_warmup_steps": 10 }
+    }
+  },
+  "objective": {
+    "name": "rag_answer_f1",
+    "direction": "maximize"
+  },
+  "search_space": {
+    "top_k":           { "type": "int",         "low": 1,       "high": 20 },
+    "chunk_size":      { "type": "int",         "low": 128,     "high": 1024, "step": 64 },
+    "chunk_overlap":   { "type": "float",       "low": 0.0,     "high": 0.5 },
+    "rerank_model":    { "type": "categorical", "choices": ["none", "bge-reranker-base", "bge-reranker-large"] },
+    "temperature":     { "type": "float",       "low": 0.0,     "high": 1.0 },
+    "embed_model":     { "type": "categorical", "choices": ["text-embedding-3-small", "text-embedding-3-large", "bge-m3"] }
+  },
+  "fixed_params": {
+    "hybrid_alpha": 0.5
+  },
+  "n_trials": 40,
+  "trials": [
+    { "number": 0,  "state": "COMPLETE", "value": 0.512, "params": { "top_k": 5,  "chunk_size": 512, "chunk_overlap": 0.2, "rerank_model": "none",              "temperature": 0.7, "embed_model": "text-embedding-3-small" } },
+    { "number": 1,  "state": "COMPLETE", "value": 0.481, "params": { "top_k": 3,  "chunk_size": 256, "chunk_overlap": 0.1, "rerank_model": "bge-reranker-base", "temperature": 0.3, "embed_model": "text-embedding-3-small" } },
+    { "number": 2,  "state": "PRUNED",   "value": null,  "params": { "top_k": 20, "chunk_size": 128, "chunk_overlap": 0.4, "rerank_model": "none",              "temperature": 0.9, "embed_model": "bge-m3" } },
+    { "number": 7,  "state": "COMPLETE", "value": 0.604, "params": { "top_k": 8,  "chunk_size": 512, "chunk_overlap": 0.15, "rerank_model": "bge-reranker-large","temperature": 0.1, "embed_model": "text-embedding-3-large" } },
+    { "number": 12, "state": "COMPLETE", "value": 0.631, "params": { "top_k": 10, "chunk_size": 640, "chunk_overlap": 0.2, "rerank_model": "bge-reranker-large","temperature": 0.0, "embed_model": "text-embedding-3-large" } },
+    { "number": 18, "state": "COMPLETE", "value": 0.642, "params": { "top_k": 12, "chunk_size": 576, "chunk_overlap": 0.2, "rerank_model": "bge-reranker-large","temperature": 0.1, "embed_model": "text-embedding-3-large" } },
+    { "number": 23, "state": "COMPLETE", "value": 0.659, "params": { "top_k": 10, "chunk_size": 704, "chunk_overlap": 0.25,"rerank_model": "bge-reranker-large","temperature": 0.0, "embed_model": "text-embedding-3-large" } },
+    { "number": 27, "state": "FAIL",     "value": null,  "params": { "top_k": 18, "chunk_size": 1024,"chunk_overlap": 0.5, "rerank_model": "bge-reranker-large","temperature": 1.0, "embed_model": "bge-m3" } },
+    { "number": 31, "state": "COMPLETE", "value": 0.671, "params": { "top_k": 10, "chunk_size": 640, "chunk_overlap": 0.2, "rerank_model": "bge-reranker-large","temperature": 0.0, "embed_model": "text-embedding-3-large" } },
+    { "number": 38, "state": "COMPLETE", "value": 0.668, "params": { "top_k": 11, "chunk_size": 576, "chunk_overlap": 0.2, "rerank_model": "bge-reranker-large","temperature": 0.05,"embed_model": "text-embedding-3-large" } }
+  ],
+  "best_trial": {
+    "number": 31,
+    "state": "COMPLETE",
+    "value": 0.671,
+    "params": { "top_k": 10, "chunk_size": 640, "chunk_overlap": 0.2, "rerank_model": "bge-reranker-large", "temperature": 0.0, "embed_model": "text-embedding-3-large" }
+  },
+  "statistics": {
+    "n_complete": 32,
+    "n_pruned":   6,
+    "n_failed":   2,
+    "best_value": 0.671,
+    "median_value": 0.548,
+    "mean_value": 0.541,
+    "std_value": 0.062,
+    "quantiles": { "p10": 0.462, "p25": 0.499, "p50": 0.548, "p75": 0.601, "p90": 0.658 },
+    "boundary_hits": {
+      "top_k":         { "low": 0, "high": 3 },
+      "chunk_size":    { "low": 1, "high": 2 },
+      "chunk_overlap": { "low": 2, "high": 3 },
+      "temperature":   { "low": 6, "high": 1 }
+    }
+  },
+  "param_importances": {
+    "rerank_model":  0.41,
+    "embed_model":   0.27,
+    "chunk_size":    0.14,
+    "top_k":         0.09,
+    "temperature":   0.06,
+    "chunk_overlap": 0.03
+  },
+  "clusters": [
+    {
+      "label": "rerank_large + embed_large cluster",
+      "trial_numbers": [7, 12, 18, 23, 31, 38],
+      "center": { "rerank_model": "bge-reranker-large", "embed_model": "text-embedding-3-large", "chunk_size": 620 }
+    }
+  ],
+  "notes": "First round: wide sweep across 6 params, 40 trials. Reranker choice dominates; best region is bge-reranker-large + text-embedding-3-large with low temperature."
+}

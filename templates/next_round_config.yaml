@@ -1,0 +1,90 @@
+# templates/next_round_config.yaml
+#
+# Starter YAML for a next-round config. Adapters may accept YAML and convert to
+# JSON before schema validation — the canonical on-disk form (the one that gets
+# hashed) is JSON produced by `json.dumps(..., sort_keys=True, separators=(",",":"))`.
+
+schema_version: "1.0"
+round_id: "round_02"
+n_trials: 50
+
+sampler:
+  type: "TPESampler"
+  params:
+    n_startup_trials: 10
+    multivariate: true
+    group: true
+  seed: 42
+
+pruner:
+  type: "MedianPruner"
+  params:
+    n_startup_trials: 5
+    n_warmup_steps: 10
+
+search_space:
+  lr:
+    type: "float"
+    low: 1.0e-4
+    high: 1.0e-2
+    log: true
+  batch_size:
+    type: "categorical"
+    choices: [32, 64, 128]
+  n_layers:
+    type: "int"
+    low: 2
+    high: 6
+
+fixed_params:
+  dropout: 0.1              # frozen based on low importance in round 1
+
+stop_conditions:
+  max_rounds: 5
+  max_total_trials: 300
+  target_value: null
+  no_improvement_rounds: 2
+  min_delta: 0.001
+
+provenance:
+  kind: "llm_proposed"
+  source_round_id: "round_01"
+  source_bundle_hash: "<sha256 of round_01_bundle.json>"
+  parent_config_hash: "<sha256 of round_01_config.json>"
+  generated_at: "2026-04-23T10:15:00Z"
+  generated_by:
+    tool: "claude_code"
+    model: "claude-opus-4-7"
+    prompt_version: "0.1.0"
+    prompt_path: "prompts/claude_code/propose_next_round.md"
+  reviewer:
+    kind: "human"
+    id: "alice@example.com"
+    approved_at: "2026-04-23T10:30:00Z"
+    comments: "LGTM, risk on lr range narrowing noted."
+  rationale: |
+    Round 01 showed param_importances.lr = 0.72 dominating, and top-10 trials
+    clustered in lr ∈ [3e-4, 5e-3]. Narrowed lr to [1e-4, 1e-2] (one decade
+    buffer each side). dropout importance = 0.02 with p90-p10 spread < 0.3%
+    of best_value, so frozen at its median 0.1. n_layers showed no boundary
+    hit on low=2 but 4/10 top trials at high=4, so expanded high to 6.
+  diff_summary:
+    - action: "narrow"
+      target: "lr"
+      before: {type: "float", low: 1.0e-5, high: 1.0e-1, log: true}
+      after:  {type: "float", low: 1.0e-4, high: 1.0e-2, log: true}
+      evidence: "param_importances.lr=0.72; top_trials clustered in [3e-4, 5e-3]"
+    - action: "freeze"
+      target: "dropout"
+      before: {type: "float", low: 0.0, high: 0.5}
+      after:  0.1
+      evidence: "param_importances.dropout=0.02; spread < 0.3% of best_value"
+    - action: "expand"
+      target: "n_layers"
+      before: {type: "int", low: 2, high: 4}
+      after:  {type: "int", low: 2, high: 6}
+      evidence: "boundary_hits.n_layers.high=4/10 in top trials"
+
+notes: |
+  Remember: search space is frozen for all 50 trials of round_02.
+  Any structural change must wait for round_03.
