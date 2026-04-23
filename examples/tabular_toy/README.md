@@ -80,11 +80,19 @@ environment. GPU is not required.
 
 ```bash
 cd examples/tabular_toy
-python train_eval.py --config experiment.active.yaml --out study_bundle.json
+python train_eval.py --config experiment.active.yaml --out run_output/study_bundle.json
 ```
 
-This will overwrite the hand-crafted `study_bundle.json` with a real run.
-20 trials should finish in a few minutes on a modern laptop CPU.
+This writes the run's bundle to `run_output/study_bundle.json`, which is
+covered by the repo's top-level `.gitignore` (`**/run_output/`). 20 trials
+should finish in a few minutes on a modern laptop CPU.
+
+> **Preserve the checked-in sample artifacts.** The `study_bundle.json`,
+> `summary.md`, and `next_round.yaml` files in this directory are
+> hand-crafted illustrative samples, not outputs of a real run. Keep the
+> run output under `run_output/` (or another gitignored path) so the
+> checked-in samples stay intact for readers. Do **not** pass
+> `--out study_bundle.json`; that would overwrite the checked-in sample.
 
 ### Produce round 02 with an analyst
 

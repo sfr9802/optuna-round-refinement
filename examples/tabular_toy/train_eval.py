@@ -2,7 +2,11 @@
 
 Usage:
     python train_eval.py --config experiment.active.yaml \
-        --out study_bundle.json
+        --out run_output/study_bundle.json
+
+The checked-in ``study_bundle.json`` next to this file is a hand-crafted
+illustrative sample. Write new runs under ``run_output/`` (or another
+gitignored path) so the sample stays intact.
 
 What this script does:
     - Loads a declarative round config (next_round_config.schema.json shape).
