@@ -21,13 +21,16 @@ A couple of things worth knowing before wiring this into your own workflow:
   Downstream projects do **not** need to add custom adapters or
   template helpers. Upgrading this package is sufficient to get the
   safer boundary-handling behaviour.
-- **Example hashes are placeholders, not verified digests.** Every
-  hash-looking value in [`examples/`](examples/) is either `null`, the
-  sentinel `"__FILL_AT_ADAPTER__"`, or an explicit `<PLACEHOLDER …>`
-  marker — not real sha256 digests of the checked-in artifacts. Recompute
-  hashes from your own canonicalised artifacts before wiring any example
-  into a live workflow (see [`SKILL.md`](SKILL.md) §6 and
-  [`docs/design.md`](docs/design.md) §4).
+- **Placeholder policy for checked-in examples.** Files named
+  `*.template.json` MAY contain the `"__FILL_AT_ADAPTER__"` sentinel
+  and are not expected to validate — they represent what the LLM emits
+  before the adapter materialises hashes. Files named `*.json` (no
+  `.template`) are schema-valid materialised examples whose
+  provenance hashes are real sha256 digests (of the canonical source
+  artefact, or of a fixed demonstrative string where no source is
+  shipped). Recompute hashes from your own canonicalised artefacts
+  before wiring any example into a live workflow (see
+  [`SKILL.md`](SKILL.md) §6 and [`docs/design.md`](docs/design.md) §4).
 - **Validated vs. illustrative examples.** The
   [`examples/rag_example/`](examples/rag_example/) walkthrough is the
   currently validated example. The
@@ -116,7 +119,8 @@ optuna-round-refinement/
     │   ├── round_01_bundle.json
     │   ├── round_01_llm_input.md
     │   ├── round_01_analysis.md
-    │   └── round_02_config.json
+    │   ├── round_02_config.json            ← schema-valid materialised example
+    │   └── round_02_config.template.json   ← LLM-authored form with sentinels
     └── tabular_toy/                ← illustrative PyTorch tabular HPO
         ├── experiment.active.yaml
         ├── train_eval.py

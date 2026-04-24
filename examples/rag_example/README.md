@@ -26,26 +26,32 @@ illustrative only.
    human-readable input to the LLM analyst.
 3. [`round_01_analysis.md`](round_01_analysis.md) — the round report the LLM
    emitted, filled from [`../../templates/round_report.md`](../../templates/round_report.md).
-4. [`round_02_config.json`](round_02_config.json) — the next-round config the
-   LLM emitted, validated against
+4. [`round_02_config.json`](round_02_config.json) — a **materialised,
+   schema-valid** next-round config. Validates cleanly against
    [`../../schemas/next_round_config.schema.json`](../../schemas/next_round_config.schema.json).
-   Note:
-   - `provenance.kind == "llm_proposed"`.
-   - `source_bundle_hash` and `parent_config_hash` are placeholders; the
-     adapter fills them at write time.
-   - `reviewer.kind == "human"` because freezing two important params is
-     a "large change" per [`../../docs/anti_patterns.md#a7`](../../docs/anti_patterns.md).
-     The adapter will refuse to run round 02 until `approved_at` is set.
+   - `provenance.source_bundle_hash` is the real sha256 of
+     `round_01_bundle.json` in its canonical form
+     (`json.dumps(..., sort_keys=True, separators=(",",":"))`).
+   - `provenance.parent_config_hash` is a deterministic demonstrative
+     sha256 (computed over a fixed placeholder string) — the repo does
+     not ship the round-01 initial config separately.
+   - `reviewer.kind == "human"` with a populated `approved_at`
+     timestamp, demonstrating what a signed-off config looks like.
+5. [`round_02_config.template.json`](round_02_config.template.json) —
+   the same config **before adapter materialisation**, retained as the
+   LLM-authored template. Contains `"__FILL_AT_ADAPTER__"` sentinels
+   for `source_bundle_hash` / `parent_config_hash`, which the adapter
+   replaces with real sha256 digests at write time. This file is NOT
+   schema-valid on its own and is not expected to validate; it exists
+   to illustrate what the LLM emits before the adapter hashes and
+   signs the artefact.
 
-> **Hashes in this example are placeholders, not verified artifact hashes.**
-> Every hash-looking value in the checked-in files — `round_01_bundle.json`,
-> `round_01_llm_input.md`, `round_01_analysis.md`, and `round_02_config.json` —
-> is either `null`, the sentinel `"__FILL_AT_ADAPTER__"`, or an explicit
-> `<PLACEHOLDER …>` marker. They are **not** real sha256 digests of these
-> files. Adopters must recompute hashes from their own canonicalised artifacts
-> (see [`../../SKILL.md`](../../SKILL.md) §6 and
-> [`../../docs/design.md`](../../docs/design.md) §4) before wiring the example
-> into any live workflow.
+> **Placeholder policy.** Checked-in `*.template.json` files MAY contain
+> the `"__FILL_AT_ADAPTER__"` sentinel. Checked-in `*.json` files that
+> are not marked `.template.json` are expected to validate cleanly
+> against the schemas. See [`../../SKILL.md`](../../SKILL.md) §6 and
+> [`../../docs/design.md`](../../docs/design.md) §4 for the hash
+> provenance chain.
 
 ## What a reader should take away
 
@@ -53,6 +59,11 @@ illustrative only.
 - Every change in `round_02_config.json` cites a specific bundle field.
 - The config is declarative JSON, not Python. Optuna code stays in the
   project adapter.
+- Coverage enrichment (`statistics.axis_coverage`) and the per-param
+  coverage note come from the skill's canonical entry points
+  (`build_study_bundle` / `render_llm_input` in
+  [`../../scripts/round_adapter.py`](../../scripts/round_adapter.py));
+  downstream projects do not author coverage logic or template helpers.
 - Round 01 did **not** have a bundle feeding it — it was the initial round,
   so in practice a `round_01_config.json` with `provenance.kind == "initial"`
   would live next to these files. It is omitted here to keep the example

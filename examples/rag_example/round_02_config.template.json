@@ -39,8 +39,8 @@
   "provenance": {
     "kind": "llm_proposed",
     "source_round_id": "round_01",
-    "source_bundle_hash": "a2f105df6c99b5c54b74028c7025b4971fac85b4872c4634c18fd6f8ec1b5e40",
-    "parent_config_hash": "7b2a1517ec5288e69304826f292425ac7e8b0637d0efb864bcc222a44cd4456c",
+    "source_bundle_hash": "__FILL_AT_ADAPTER__",
+    "parent_config_hash": "__FILL_AT_ADAPTER__",
     "generated_at": "2026-04-23T10:15:00Z",
     "generated_by": {
       "tool": "claude_code",
@@ -50,9 +50,9 @@
     },
     "reviewer": {
       "kind": "human",
-      "id": "alice@example.com",
-      "approved_at": "2026-04-23T10:30:00Z",
-      "comments": "LGTM. rerank_model + embed_model freeze acknowledged; round 03 to re-introduce embed_model if plateau hits."
+      "id": null,
+      "approved_at": null,
+      "comments": null
     },
     "rationale": "Round 01 importances concentrated on rerank_model (0.41) and embed_model (0.27); all 6 trials in clusters[0] use bge-reranker-large + text-embedding-3-large. Both frozen. Remaining 4 params narrowed to the convex hull of top trials with small buffers: top_k top trials span [8,12] → [6,14]; chunk_size top span [512,704] → [448,768]; chunk_overlap top span [0.15,0.25] → [0.1,0.3]; temperature top span [0.0,0.1] → [0.0,0.2]. Sampler / pruner unchanged — TPE handles the 4-dim space well and 15% pruning rate was balanced.",
     "diff_summary": [
@@ -100,5 +100,5 @@
       }
     ]
   },
-  "notes": "Materialised schema-valid example. `provenance.source_bundle_hash` is the real sha256 of `round_01_bundle.json` in its canonical form (json.dumps(sort_keys=True, separators=(',', ':'))); `provenance.parent_config_hash` is a deterministic demonstrative digest (sha256 of a fixed placeholder string) because this repository does not ship the round_01 initial config separately. For the non-materialised form with `__FILL_AT_ADAPTER__` sentinels, see `round_02_config.template.json`. Freezing rerank_model and embed_model is a 'large change' per anti_patterns.md A7 — reviewer.kind=human required; approved_at is populated here to demonstrate a signed-off config."
+  "notes": "TEMPLATE — not a final schema-valid runtime output. The `provenance.source_bundle_hash` and `provenance.parent_config_hash` fields use the literal `__FILL_AT_ADAPTER__` sentinel, which the adapter replaces with a real sha256 at write time. For a schema-valid materialised example, see `round_02_config.json` in this directory. Freezing rerank_model and embed_model is a 'large change' per anti_patterns.md A7 — reviewer.kind=human required. approved_at left null so adapter will block execution until a human signs off."
 }

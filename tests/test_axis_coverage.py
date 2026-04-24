@@ -519,6 +519,60 @@ class TestSchemaContract(unittest.TestCase):
                         msg=f"axis_coverage.{name}.note missing in {path}",
                     )
 
+    def test_shipped_final_config_examples_validate(self):
+        """Checked-in non-template config examples must validate against
+        ``schemas/next_round_config.schema.json``.
+
+        A ``*.template.json`` sibling is allowed to carry
+        ``__FILL_AT_ADAPTER__`` sentinels and is intentionally NOT
+        expected to validate — see the separate test below.
+        """
+        config_schema = json.loads(
+            (_ROOT / "schemas" / "next_round_config.schema.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        finals = sorted(
+            p for p in (_ROOT / "examples").rglob("*_config.json")
+            if not p.name.endswith(".template.json")
+        )
+        self.assertTrue(finals, "expected at least one checked-in *_config.json example")
+        for path in finals:
+            with self.subTest(config=str(path)):
+                cfg = json.loads(path.read_text(encoding="utf-8"))
+                jsonschema.validate(cfg, config_schema)
+
+    def test_template_configs_are_clearly_marked(self):
+        """Placeholder-bearing template configs MUST live under a
+        ``*.template.json`` name, so that a reader/validator cannot
+        mistake them for final schema-valid outputs.
+
+        This test locks in the placeholder policy documented in the
+        README and in ``examples/rag_example/README.md``: no non-template
+        `*_config.json` file is allowed to carry the
+        ``__FILL_AT_ADAPTER__`` sentinel in the provenance-hash fields
+        that must validate against the sha256 pattern. (Mentions of the
+        sentinel inside free-text ``notes`` / ``rationale`` are fine —
+        those fields are plain strings.)
+        """
+        SENTINEL = "__FILL_AT_ADAPTER__"
+        hash_fields = ("source_bundle_hash", "parent_config_hash")
+        offenders = []
+        for path in (_ROOT / "examples").rglob("*_config.json"):
+            if path.name.endswith(".template.json"):
+                continue
+            cfg = json.loads(path.read_text(encoding="utf-8"))
+            prov = cfg.get("provenance") or {}
+            for field in hash_fields:
+                if prov.get(field) == SENTINEL:
+                    offenders.append(f"{path}::provenance.{field}")
+        self.assertFalse(
+            offenders,
+            "final *_config.json examples must not carry the "
+            f"{SENTINEL!r} sentinel in provenance hashes; move them "
+            f"under *.template.json. Offenders: {offenders}",
+        )
+
 
 class TestTemplateAndPromptGuardrails(unittest.TestCase):
     """The template + prompts must contain the UNSAMPLED EDGE / coverage-
