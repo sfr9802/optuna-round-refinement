@@ -1,6 +1,6 @@
 ---
 name: refine
-version: 0.3.2
+version: 0.3.3
 description: >
   Round-level Optuna hyperparameter refinement with an LLM-in-the-outer-loop.
   Optuna samples trials; the LLM only analyses a finished round's bundle and
@@ -63,6 +63,19 @@ Everything else — sampler / pruner construction, `suggest_*` dispatch,
 bundle export, `axis_coverage` enrichment, schema validation, markdown
 rendering — is owned by this skill package. You invoke one CLI and get
 back a fully-enriched bundle + rendered LLM input.
+
+Slash-command entry points (plugin-installed Claude Code only):
+
+- `/refine <config_path> [N]` — runs §1 (single round) if N omitted or
+  N==1; routes to §1A (auto loop) if N>=2.
+- `/refine-auto <config_path> <N>` — explicit alias for §1A with N
+  required. Use when you want to make multi-round intent visible in
+  the command itself.
+
+Both commands resolve paths via `${CLAUDE_PLUGIN_ROOT}` and invoke
+the same `scripts/round_runner.py` CLI documented below. They are
+thin orchestration wrappers — the scientific contract (bundle schema,
+axis-coverage, anti-patterns) is identical to the manual workflow.
 
 Canonical skill-owned entry points (all in
 [`scripts/round_adapter.py`](scripts/round_adapter.py)):

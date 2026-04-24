@@ -5,6 +5,38 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## v0.3.3
+
+### Added
+- **`/refine` and `/refine-auto` slash commands.** When the skill is
+  installed as a Claude Code plugin, two explicit slash commands are
+  now available:
+  - `/refine <config_path> [N]` — one round when `N` is omitted or
+    equals 1; routes to the auto-loop when `N >= 2`. Single-round
+    mode lets the current Claude Code session drive the analysis
+    interactively; auto-loop mode spawns fresh headless `claude
+    --print` subprocesses for every round-to-round transition so
+    the outer session stays responsive.
+  - `/refine-auto <config_path> <N>` — explicit alias that always
+    runs the auto-loop, with `N` required. Use when you want the
+    multi-round intent to be visible in the command itself.
+  Both commands live in `commands/` at the plugin root and resolve
+  `${CLAUDE_PLUGIN_ROOT}` at runtime, so they work regardless of
+  where the plugin is cached.
+- SKILL.md now documents the slash-command entry points alongside
+  the existing CLI entry points.
+
+### Changed
+- README "Install" section surfaces the two slash commands with
+  copy-pastable examples right after the `/plugin install` step.
+
+### Compatibility
+- Fully additive. The underlying `run` / `auto` CLI and Python API
+  are unchanged; the slash commands are thin orchestration wrappers.
+  Installations that never invoke a slash command (e.g. vendored
+  `third_party/optuna-round-refinement/` without the plugin
+  manifest) are unaffected.
+
 ## v0.3.2
 
 ### Added

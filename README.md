@@ -38,7 +38,27 @@ added as a Claude Code plugin marketplace directly from GitHub:
 /plugin install optuna-round-refinement@sfr9802-skills
 ```
 
-The skill is then available in any Claude Code session. To refresh later:
+The skill is then available in any Claude Code session, both as an
+auto-triggered skill (natural-language phrases like "Optuna 라운드
+돌리고 싶어" will route to it) and as two explicit slash commands:
+
+- `/refine <config_path> [N]` — one round by default, or N rounds in
+  auto-loop mode if a second argument is given.
+- `/refine-auto <config_path> <N>` — explicit auto-loop; N required.
+
+Example:
+
+```
+/refine experiment.active.yaml          # one round
+/refine experiment.active.yaml 5        # five rounds, unattended
+/refine-auto experiment.active.yaml 10  # explicit ten-round auto-loop
+```
+
+For the auto-loop variants, Claude Code spawns a fresh headless
+`claude --print` subprocess per round-to-round transition, so this
+session stays responsive during the study. Token cost is linear in N.
+
+To refresh the plugin later:
 
 ```shell
 /plugin marketplace update sfr9802-skills
