@@ -26,9 +26,44 @@ hyperparameter studies as a sequence of **rounds**:
 Each round is self-contained, reproducible, and auditable. The LLM sees only
 the **summarised study bundle** of a finished round, never live trial metrics.
 
+## Install
+
+### Install as a Claude Code plugin
+
+This repo ships a [`.claude-plugin/`](.claude-plugin/) manifest, so it can be
+added as a Claude Code plugin marketplace directly from GitHub:
+
+```shell
+/plugin marketplace add sfr9802/optuna-round-refinement
+/plugin install optuna-round-refinement@sfr9802-skills
+```
+
+The skill is then available in any Claude Code session. To refresh later:
+
+```shell
+/plugin marketplace update sfr9802-skills
+```
+
+### Install as a Codex context pack
+
+This repo ships an [`AGENTS.md`](AGENTS.md) at the root. Codex automatically
+discovers and loads it when you run `codex` from inside a clone of the repo:
+
+```bash
+git clone https://github.com/sfr9802/optuna-round-refinement.git
+cd optuna-round-refinement
+codex
+```
+
+To use the skill from your own project, reference the relevant sections of
+[`AGENTS.md`](AGENTS.md) and [`prompts/codex/`](prompts/codex/) from your own
+project's `AGENTS.md` — Codex layers `AGENTS.md` files from the git root
+down to your current directory, so nested or vendored copies compose
+automatically.
+
 ## Quickstart
 
-After installing the skill (see [Install](#install) below) or vendoring
+After installing the skill (see [Install](#install) above) or vendoring
 it into your own repository as `third_party/optuna-round-refinement/`,
 the project side contributes exactly **one file** — an evaluate
 function — and one config YAML. Everything else (Optuna wiring, bundle
@@ -182,41 +217,6 @@ The LLM round-analyst must produce:
 - A **next-round config** conforming to
   [`schemas/next_round_config.schema.json`](schemas/next_round_config.schema.json),
   including **provenance fields** linking back to the source bundle.
-
-## Install
-
-### Install as a Claude Code plugin
-
-This repo ships a [`.claude-plugin/`](.claude-plugin/) manifest, so it can be
-added as a Claude Code plugin marketplace directly from GitHub:
-
-```shell
-/plugin marketplace add sfr9802/optuna-round-refinement
-/plugin install optuna-round-refinement@sfr9802-skills
-```
-
-The skill is then available in any Claude Code session. To refresh later:
-
-```shell
-/plugin marketplace update sfr9802-skills
-```
-
-### Install as a Codex context pack
-
-This repo ships an [`AGENTS.md`](AGENTS.md) at the root. Codex automatically
-discovers and loads it when you run `codex` from inside a clone of the repo:
-
-```bash
-git clone https://github.com/sfr9802/optuna-round-refinement.git
-cd optuna-round-refinement
-codex
-```
-
-To use the skill from your own project, reference the relevant sections of
-[`AGENTS.md`](AGENTS.md) and [`prompts/codex/`](prompts/codex/) from your own
-project's `AGENTS.md` — Codex layers `AGENTS.md` files from the git root
-down to your current directory, so nested or vendored copies compose
-automatically.
 
 ## License
 
