@@ -100,5 +100,5 @@
       "center": { "optimizer": "adamw", "activation": "gelu", "hidden_units": 256, "learning_rate": 0.0016 }
     }
   ],
-  "notes": "Illustrative sample bundle for the tabular_toy example. 20 trials; top-5 plus a sample of mid/pruned/failed trials shown. Numbers are hand-crafted to exercise the schema — an actual run of train_eval.py will produce different values."
+  "notes": "Illustrative sample bundle for the tabular_toy example. 20 trials; top-5 plus a sample of mid/pruned/failed trials shown. Numbers are hand-crafted to exercise the schema — an actual run of scripts/round_runner.py will produce different values."
 }

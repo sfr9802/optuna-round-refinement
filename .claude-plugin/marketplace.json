@@ -5,14 +5,14 @@
   },
   "metadata": {
     "description": "Open-source skill packs by sfr9802.",
-    "version": "0.1.0"
+    "version": "0.3.0"
   },
   "plugins": [
     {
       "name": "optuna-round-refinement",
       "source": "./",
       "description": "Round-level Optuna hyperparameter refinement with an LLM-in-the-outer-loop.",
-      "version": "0.1.0",
+      "version": "0.3.0",
       "author": { "name": "sfr9802" },
       "homepage": "https://github.com/sfr9802/optuna-round-refinement",
       "repository": "https://github.com/sfr9802/optuna-round-refinement",

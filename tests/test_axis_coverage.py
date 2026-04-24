@@ -668,24 +668,54 @@ class TestTemplateAndPromptGuardrails(unittest.TestCase):
 
 
 class TestNoDownstreamManualInjectionRequired(unittest.TestCase):
-    """Global audit: no test (and no doc/example) should tell a downstream
-    user to call ``inject_axis_coverage`` by hand after building a
-    bundle. Using the canonical build path MUST be sufficient.
+    """Global audit: no doc/example/project-side code should tell a user
+    to call ``inject_axis_coverage`` by hand, or to re-implement bundle
+    construction. The skill-owned runner + canonical build path MUST be
+    sufficient.
     """
 
-    _FORBIDDEN_EXAMPLE_PATTERNS = (
+    _FORBIDDEN_PROJECT_SIDE_PATTERNS = (
         "from scripts.round_adapter import inject_axis_coverage",
-        # Adapters adopting the skill must not be told to call
-        # inject_axis_coverage manually; build_study_bundle owns that.
+        # Bundle construction is skill-owned — evaluate.py does not touch it.
+        "build_study_bundle",
+        "inject_axis_coverage",
+        "compute_axis_coverage",
     )
 
-    def test_example_adapter_uses_canonical_entry_point(self):
-        body = (_ROOT / "examples" / "tabular_toy" / "train_eval.py").read_text(
+    def test_skill_runner_uses_canonical_build_path(self):
+        # The skill's own runner MUST route bundle writes through
+        # build_study_bundle so axis_coverage + coverage notes are baked
+        # in automatically — no project-side step.
+        body = (_ROOT / "scripts" / "round_runner.py").read_text(encoding="utf-8")
+        self.assertIn("build_study_bundle", body)
+        # And it must NOT tell anyone to call inject_axis_coverage manually.
+        self.assertNotIn(
+            "from round_adapter import inject_axis_coverage", body
+        )
+        self.assertNotIn(
+            "from scripts.round_adapter import inject_axis_coverage", body
+        )
+
+    def test_project_side_example_is_evaluate_only(self):
+        # The project side of the tabular_toy example is a single
+        # evaluate.py. It must NOT re-implement bundle construction,
+        # axis_coverage, or any skill-owned logic — the runner owns all
+        # of that.
+        body = (_ROOT / "examples" / "tabular_toy" / "evaluate.py").read_text(
             encoding="utf-8"
         )
-        self.assertIn("build_study_bundle", body)
-        for pattern in self._FORBIDDEN_EXAMPLE_PATTERNS:
-            self.assertNotIn(pattern, body)
+        for pattern in self._FORBIDDEN_PROJECT_SIDE_PATTERNS:
+            self.assertNotIn(
+                pattern, body,
+                msg=f"evaluate.py must not reference skill-owned symbol {pattern!r}",
+            )
+        # The old adapter file MUST be gone so users are not tempted to
+        # copy-paste a thin adapter pattern that the runner has replaced.
+        self.assertFalse(
+            (_ROOT / "examples" / "tabular_toy" / "train_eval.py").exists(),
+            "examples/tabular_toy/train_eval.py must not exist — "
+            "evaluate.py + the skill-owned runner replace it.",
+        )
 
 
 if __name__ == "__main__":

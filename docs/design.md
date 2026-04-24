@@ -43,7 +43,8 @@ This split gives:
 - **auditability**: every config change is a diff between two JSON files
   with full provenance.
 - **model-agnosticism**: the LLM can be swapped for a smaller model, a
-  human, or a rule-based script without changing the adapter.
+  human, or a rule-based script without changing the user's
+  `evaluate` callable or the skill-owned runner.
 
 ## 3. Search-space evolution strategy
 
@@ -89,58 +90,68 @@ round_01_config ──► round_01_bundle ──► round_02_config ──► ro
 ```
 
 Every `next_round_config.json` stores both its parent config hash and the
-bundle hash that drove its changes. The adapter recomputes these hashes at
-load time and refuses to run if they don't match — this prevents silent
-drift when a bundle is re-exported or hand-edited.
+bundle hash that drove its changes. The skill-owned runner recomputes
+these hashes at load time and refuses to run if they don't match — this
+prevents silent drift when a bundle is re-exported or hand-edited.
 
-## 5. Adapter pattern
+## 5. Project-side contract (zero adapter)
 
-The skill is deliberately thin. It ships a tiny set of canonical entry
-points in `scripts/round_adapter.py` so that bundle safety-enrichment
-(axis_coverage, coverage notes) happens **inside the package**, not on
-the adapter side. The project adapter is expected to be small
-(~100 LOC) and look roughly like:
+The skill is deliberately thin. It ships:
+
+- `scripts/round_runner.py` — CLI + Python orchestration that owns
+  sampler/pruner construction, `trial.suggest_*` dispatch, bundle export,
+  and delegation to the canonical bundle entry points below.
+- `scripts/round_adapter.py` — pure-Python bundle helpers
+  (`build_study_bundle`, `load_study_bundle`, `render_llm_input`, …)
+  that own axis_coverage enrichment and coverage-note generation.
+
+The project side provides **exactly one callable** and one config YAML:
 
 ```python
-# project/opt_adapter.py
-from pathlib import Path
-import hashlib, json, jsonschema
+# project/evaluate.py
+from typing import Any, Dict
 
-from scripts.round_adapter import (
-    build_study_bundle,   # construct + normalise + validate + (opt) write
-    load_study_bundle,    # read-back + safe-normalise
-    render_llm_input,     # canonical markdown renderer (coverage note baked in)
-)
-
-SCHEMA_CONFIG = json.loads(Path("schemas/next_round_config.schema.json").read_text())
-
-def export_study_bundle(study, round_id: str, out_path: Path) -> dict:
-    raw = {
-        "schema_version": "1.0",
-        "round_id": round_id,
-        "study_id": study.study_name,
-        # … populate per schema …
-    }
-    # build_study_bundle owns axis_coverage injection AND coverage-note
-    # generation — the adapter does not call inject_axis_coverage by
-    # hand or author a coverage_note helper on the template side.
-    return build_study_bundle(raw, out_path=out_path)
-
-def validate_and_hash(cfg_path: Path) -> str:
-    cfg = json.loads(cfg_path.read_text())
-    jsonschema.validate(cfg, SCHEMA_CONFIG)
-    canon = json.dumps(cfg, sort_keys=True, separators=(",", ":")).encode()
-    return hashlib.sha256(canon).hexdigest()
-
-def apply_next_round_config(cfg: dict) -> "optuna.Study":
-    # translate search_space + sampler + pruner → optuna.Study
-    ...
+def evaluate(params: Dict[str, Any]) -> Dict[str, Any]:
+    # train / score one trial using the merged params dict
+    # (sampled search-space values + fixed_params).
+    return {"primary": val_auc, "secondary": {"train_time_s": 12.3}}
 ```
 
-Everything project-specific (dataset loading, objective, logging) stays in
-the project repo. The skill stays generic AND owns every step that the
-LLM analyst later depends on for boundary-hit disambiguation — there is
-no coverage helper the adapter has to author.
+```yaml
+# project/experiment.active.yaml
+evaluate: "evaluate:evaluate"
+direction: "maximize"
+objective_name: "val_auc"
+round_id: "round_01"
+n_trials: 50
+sampler: { type: "TPESampler", params: {}, seed: 42 }
+pruner:  { type: "MedianPruner", params: {} }
+search_space: { ... }
+provenance: { kind: "initial", generated_at: "...", generated_by: { tool: "human" }, rationale: "..." }
+```
+
+A round is then one CLI call:
+
+```bash
+python <skill>/scripts/round_runner.py run \
+    --config experiment.active.yaml \
+    --out-bundle run_output/study_bundle.json \
+    --out-llm-input run_output/llm_input.md
+```
+
+Everything project-specific (dataset loading, objective, logging) stays
+inside `evaluate` and whatever modules it imports. The skill stays
+generic AND owns every step the LLM analyst later depends on for
+boundary-hit disambiguation — there is no adapter, no coverage helper,
+and no bundle-construction code on the project side.
+
+### Low-level escape hatch
+
+Callers that need multi-objective studies, distributed storage, or
+custom Optuna callbacks can skip the CLI and drive their own loop,
+routing bundle writes through `build_study_bundle(raw, out_path=…)` and
+reads through `load_study_bundle(path)`. Either path gets the same
+safer boundary-handling behaviour.
 
 ## 6. Stop conditions
 
@@ -151,4 +162,5 @@ A round-based loop needs explicit stop conditions. The skill models three:
 - **Plateau**: `no_improvement_rounds` with a `min_delta`.
 
 Stop conditions are declared in `next_round_config.stop_conditions`. The
-adapter checks them before kicking off round R+1.
+runner's caller (or the skill's orchestrator in Claude Code) checks
+them before kicking off round R+1.

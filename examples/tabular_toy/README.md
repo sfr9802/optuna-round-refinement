@@ -21,9 +21,10 @@ example shows the same artifact shape on a second unrelated example
 - A compact, believable tabular-DL HPO search space: `hidden_units`,
   `num_layers`, `dropout`, `learning_rate`, `batch_size`, `optimizer`,
   `activation`.
-- A `train_eval.py` entrypoint that can either train one model given
-  hyperparameters or run a full Optuna round from a declarative YAML
-  config.
+- An `evaluate.py` that contains **only** the per-trial training /
+  scoring function. Everything else (Optuna wiring, bundle export,
+  schema validation, LLM-input rendering) is owned by the skill
+  package — the project does not need to write a thin adapter.
 - A round 01 → round 02 walkthrough with a sample
   [`study_bundle.json`](study_bundle.json), analyst
   [`summary.md`](summary.md), and proposed
@@ -51,8 +52,8 @@ for drawing generalisation conclusions about HPO strategies.
 ```
 examples/tabular_toy/
 ├── README.md                ← this file
-├── experiment.active.yaml   ← active round config (next_round_config shape)
-├── train_eval.py            ← per-trial training + Optuna study runner
+├── experiment.active.yaml   ← active round config; points at evaluate:evaluate
+├── evaluate.py              ← the only project-side code (evaluate(params)->dict)
 ├── model.py                 ← SimpleMLP for tabular inputs
 ├── dataset.py               ← loads + scales breast_cancer split
 ├── study_bundle.json        ← sample round_01 bundle (hand-crafted)
@@ -78,31 +79,49 @@ environment. GPU is not required.
 
 ### Run round 01
 
+The skill ships its own runner; invoke it directly:
+
 ```bash
 cd examples/tabular_toy
-python train_eval.py --config experiment.active.yaml --out run_output/study_bundle.json
+python ../../scripts/round_runner.py run \
+    --config experiment.active.yaml \
+    --out-bundle run_output/study_bundle.json \
+    --out-llm-input run_output/llm_input.md
 ```
 
-This writes the run's bundle to `run_output/study_bundle.json`, which is
-covered by the repo's top-level `.gitignore` (`**/run_output/`). 20 trials
-should finish in a few minutes on a modern laptop CPU.
+The runner reads `experiment.active.yaml`, resolves the `evaluate:
+"evaluate:evaluate"` pointer to the `evaluate()` function in
+[`evaluate.py`](evaluate.py) (importing from this directory), runs the
+Optuna study, then writes:
+
+- `run_output/study_bundle.json` — the round bundle with `axis_coverage`
+  and coverage notes baked in.
+- `run_output/llm_input.md` — the markdown input the outer-loop analyst
+  reads.
+
+`run_output/` is covered by the repo's top-level `.gitignore`
+(`**/run_output/`). 20 trials should finish in a few minutes on a modern
+laptop CPU.
 
 > **Preserve the checked-in sample artifacts.** The `study_bundle.json`,
 > `summary.md`, and `next_round.yaml` files in this directory are
 > hand-crafted illustrative samples, not outputs of a real run. Keep the
 > run output under `run_output/` (or another gitignored path) so the
 > checked-in samples stay intact for readers. Do **not** pass
-> `--out study_bundle.json`; that would overwrite the checked-in sample.
+> `--out-bundle study_bundle.json`; that would overwrite the checked-in
+> sample.
 
 ### Produce round 02 with an analyst
 
 The round 02 transition follows the same workflow as the RAG example:
 
-1. Render [`study_bundle.json`](study_bundle.json) into markdown with
-   the skill's canonical renderer
+1. The runner already wrote the rendered markdown to
+   `run_output/llm_input.md` via the skill's canonical renderer
    [`../../scripts/round_adapter.py::render_llm_input`](../../scripts/round_adapter.py)
    (which fills [`../../templates/llm_input.md`](../../templates/llm_input.md)
-   and bakes the coverage-note column in from the bundle).
+   and bakes the coverage-note column in from the bundle). To re-render
+   an existing bundle without running a new study, use
+   `python ../../scripts/round_runner.py render --bundle study_bundle.json`.
 2. Run the analyst prompt from
    [`../../prompts/claude_code/propose_next_round.md`](../../prompts/claude_code/propose_next_round.md)
    (or the Codex variant) on that rendered markdown.

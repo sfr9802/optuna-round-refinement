@@ -1,6 +1,6 @@
 # Prompt: propose_next_round (Codex CLI)
 
-> **prompt_version:** `0.1.0`
+> **prompt_version:** `0.2.0`
 > **intended runtime:** Codex CLI / GPT-class reasoning model.
 
 Role: outer-loop analyst. Produce the next Optuna round's configuration from
@@ -19,8 +19,9 @@ Emit, in this order:
 1. A markdown round report matching `templates/round_report.md`.
 2. A JSON object conforming to `schemas/next_round_config.schema.json`.
 
-Wrap each in a fenced block. The adapter splits on the fences and validates
-the JSON against the schema.
+Wrap each in a fenced block. The invoking orchestrator (skill-owned
+runner or Claude Code / Codex harness) splits on the fences and
+validates the JSON against the schema.
 
 ## Decision checklist
 
@@ -79,7 +80,7 @@ valid grounds for `expand` (re-open) this round.
   "generated_by": {
     "tool": "codex_cli",
     "model": "<model id you are>",
-    "prompt_version": "0.1.0",
+    "prompt_version": "0.2.0",
     "prompt_path": "prompts/codex/propose_next_round.md"
   },
   "reviewer": {"kind": "human", "id": null, "approved_at": null, "comments": null},
@@ -94,6 +95,10 @@ valid grounds for `expand` (re-open) this round.
 - No per-trial steering, no mid-round changes, no LLM-as-objective.
 - Every `diff_summary[*]` has a non-empty `evidence` string referencing a
   real bundle field.
+- **Carry forward operator-set top-level fields unchanged** from the
+  parent config: `evaluate`, `direction`, `objective_name`, `study_id`.
+  The runner uses `evaluate` to locate the user's callable — dropping
+  or rewriting it breaks the next round.
 - **Every `narrow` row's evidence MUST cite
   `statistics.axis_coverage.<p>`** (or explicitly acknowledge "coverage
   unknown" for legacy bundles, which also forbids narrowing on

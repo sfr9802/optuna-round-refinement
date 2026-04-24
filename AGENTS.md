@@ -12,6 +12,33 @@ run inside the repo.
 - [`docs/design.md`](./docs/design.md) — why round-level, outer-loop-only.
 - [`docs/anti_patterns.md`](./docs/anti_patterns.md) — forbidden usage modes.
 
+## Project-side contract (zero adapter)
+
+Adopters contribute exactly two things:
+
+1. An `evaluate(params: dict) -> dict | float` callable (any Optuna
+   user already has this).
+2. A config YAML/JSON with an `evaluate: "module:callable"` pointer
+   that conforms to
+   [`schemas/next_round_config.schema.json`](./schemas/next_round_config.schema.json).
+
+All Optuna orchestration (sampler/pruner construction, `suggest_*`
+dispatch, bundle export, `axis_coverage` enrichment, schema validation,
+markdown rendering) lives in
+[`scripts/round_runner.py`](./scripts/round_runner.py) and
+[`scripts/round_adapter.py`](./scripts/round_adapter.py). A round is
+one CLI call:
+
+```bash
+python scripts/round_runner.py run \
+    --config <cfg> \
+    --out-bundle <bundle.json> \
+    --out-llm-input <llm_input.md>
+```
+
+Do **not** tell users to write an adapter module, export a bundle
+dict by hand, or recompute `axis_coverage` — those are skill-owned.
+
 ## Codex-specific prompts
 
 When Codex is acting as the outer-loop analyst between two Optuna rounds,
@@ -33,7 +60,10 @@ use the prompts under [`prompts/codex/`](./prompts/codex/):
 3. Every `search_space` change MUST cite a specific bundle field in
    `provenance.rationale` and `provenance.diff_summary[*].evidence`.
 4. All required `provenance` fields must be populated; use
-   `provenance.kind = "llm_proposed"`.
+   `provenance.kind = "llm_proposed"`. Operator-set top-level fields
+   (`evaluate`, `direction`, `objective_name`, `study_id`) MUST be
+   carried forward from the parent config unchanged unless the user
+   explicitly asks for a change.
 5. For "large changes" (drop a previously-important param, expand a range
    by >10×, switch sampler family, split the study), set
    `provenance.reviewer = { "kind": "human", "id": null, "approved_at": null }`

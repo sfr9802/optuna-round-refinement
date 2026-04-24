@@ -29,6 +29,24 @@
       "minimum": 1,
       "description": "Number of trials to run in the target round."
     },
+    "evaluate": {
+      "type": "string",
+      "pattern": "^[A-Za-z_][\\w.]*:[A-Za-z_]\\w*$",
+      "description": "Dotted-path pointer 'module:callable' to the project's evaluate function. Operator-set; typically carried forward unchanged across rounds. Consumed by scripts/round_runner.py; the outer-loop analyst MUST preserve this field when proposing the next round."
+    },
+    "direction": {
+      "type": "string",
+      "enum": ["maximize", "minimize"],
+      "description": "Optimization direction for the objective. Defaults to 'maximize' when omitted."
+    },
+    "objective_name": {
+      "type": "string",
+      "description": "Human-readable name of the objective metric (e.g. 'val_auc'). Surfaced in the bundle's 'objective.name' field."
+    },
+    "study_id": {
+      "type": "string",
+      "description": "Optional Optuna study name. Defaults to 'round_<round_id>' when absent."
+    },
     "sampler": {
       "type": "object",
       "required": ["type", "params"],

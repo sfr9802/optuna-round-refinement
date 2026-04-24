@@ -1,6 +1,6 @@
 # Prompt: propose_next_round (Claude Code)
 
-> **prompt_version:** `0.1.0`
+> **prompt_version:** `0.2.0`
 > **intended model:** Claude (any 4.x+).
 
 You are the outer-loop analyst proposing the configuration for the next
@@ -33,7 +33,13 @@ Optuna round. You must emit:
    - a `rationale` that a reviewer can skim in 30 seconds,
    - all required `provenance` fields,
    - `provenance.kind = "llm_proposed"`,
-   - `provenance.generated_by = {"tool":"claude_code","model":"<model>","prompt_version":"0.1.0","prompt_path":"prompts/claude_code/propose_next_round.md"}`.
+   - `provenance.generated_by = {"tool":"claude_code","model":"<model>","prompt_version":"0.2.0","prompt_path":"prompts/claude_code/propose_next_round.md"}`,
+   - operator-set top-level fields **carried forward unchanged from the
+     parent config**: `evaluate`, `direction`, `objective_name`,
+     `study_id`. These point at the user's `evaluate` callable and the
+     study identity — the analyst MUST NOT drop, rename, or rewrite
+     them. Changing any of them is a user-initiated change, not an
+     analyst decision.
 6. Write the round report from `templates/round_report.md`.
 
 ## NARROW guardrails (safety rule, not a suggestion)
@@ -111,9 +117,14 @@ If a boundary is UNSAMPLED or coverage is unknown, prefer one of:
   report and still emit a config but with `n_trials` minimised and a
   `notes` field explaining "candidate final round".
 - Fill the `provenance.source_bundle_hash` and `provenance.parent_config_hash`
-  as literal strings — the adapter will replace them with real sha256 values
-  at write time. Use the sentinel `"__FILL_AT_ADAPTER__"` if you don't have
+  as literal strings — the skill-owned runner (or the invoking
+  orchestrator) will replace them with real sha256 values at freeze
+  time. Use the sentinel `"__FILL_AT_ADAPTER__"` if you don't have
   them.
+- **Carry forward operator-set fields.** Copy `evaluate`, `direction`,
+  `objective_name`, and `study_id` from the parent config verbatim.
+  The runner uses `evaluate` to locate the user's `evaluate(params)`
+  callable — dropping or rewriting it breaks the next round.
 
 ## Output format
 
@@ -128,5 +139,6 @@ Emit exactly two fenced blocks, in this order:
 { "schema_version": "1.0", ... }
 \`\`\`
 
-The adapter will split on the fences and validate the JSON block against
+The invoking orchestrator (Claude Code or the skill-owned runner) will
+split on the fences and validate the JSON block against
 `schemas/next_round_config.schema.json`.

@@ -5,6 +5,76 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## v0.3.0
+
+### Added
+- `scripts/round_runner.py` — skill-owned CLI + Python orchestration
+  for running one full Optuna round end-to-end from a declarative YAML
+  config. Owns sampler / pruner construction, `trial.suggest_*`
+  dispatch, bundle export, delegation to `build_study_bundle`, and
+  optional `render_llm_input` rendering.
+  - `run_round(config, out_bundle=…, out_llm_input=…)` — Python entry
+    point.
+  - `python scripts/round_runner.py run --config <cfg>` — CLI entry
+    point, with `--out-bundle`, `--out-llm-input`, and
+    `--evaluate-search-path` flags.
+  - `python scripts/round_runner.py render --bundle <b>` — re-render
+    an existing bundle through `templates/llm_input.md` without
+    running a new study.
+- `schemas/next_round_config.schema.json` now carries four optional
+  operator-set top-level fields:
+  - `evaluate` — dotted-path pointer `"module:callable"` to the
+    project's evaluate function.
+  - `direction` — `"maximize"` (default) or `"minimize"`.
+  - `objective_name` — human-readable metric name surfaced in the
+    bundle's `objective.name`.
+  - `study_id` — optional Optuna study name; defaults to
+    `"round_<round_id>"` when absent.
+
+### Changed
+- **Project-side contract reduced from "thin adapter" to "one
+  callable".** Adopters now contribute only an
+  `evaluate(params: dict) -> dict | float` function plus a config YAML
+  with `evaluate: "module:callable"`. The skill-owned runner handles
+  every other step that used to require ~100 LOC of adapter code.
+- `SKILL.md` rewritten as a Claude-Code-native skill contract: an
+  8-step workflow (locate config → verify evaluate pointer → run round
+  → read bundle → analyse → propose → validate+freeze → hand back)
+  that an LLM agent can execute directly.
+- Prompt versions bumped to `0.2.0`
+  (`prompts/claude_code/propose_next_round.md`,
+  `prompts/codex/propose_next_round.md`) with new guidance that
+  operator-set top-level fields (`evaluate`, `direction`,
+  `objective_name`, `study_id`) MUST be carried forward from the
+  parent config unchanged.
+- `examples/tabular_toy/` refactored to the new contract:
+  - Removed `train_eval.py` (the old thin-adapter driver).
+  - Added `evaluate.py` — the sole project-side file, containing just
+    the `evaluate(params)` function.
+  - Updated `experiment.active.yaml` to add the `evaluate:`,
+    `direction:`, `objective_name:` fields.
+  - README now shows `python scripts/round_runner.py run …` as the
+    one-line round invocation.
+- `docs/design.md` §5 replaced "Adapter pattern" with "Project-side
+  contract (zero adapter)" and documents the low-level
+  `build_study_bundle` / `load_study_bundle` / `render_llm_input`
+  escape hatch for multi-objective, distributed, or custom-callback
+  setups.
+- `AGENTS.md` now documents the zero-adapter contract and the
+  carry-forward rule for operator-set fields.
+
+### Compatibility
+- Fully backward-compatible on the wire. Existing bundles and configs
+  still validate; the four new config fields are all optional.
+- The low-level Python API (`build_study_bundle`,
+  `load_study_bundle`, `render_llm_input`, `inject_axis_coverage`,
+  `compute_axis_coverage`, `normalize_study_bundle`,
+  `write_study_bundle`) is unchanged. Projects that drove bundles by
+  hand in v0.2.0 can keep doing so.
+- Configs written in v0.2.0 that lack `evaluate:` remain schema-valid;
+  they just need the field added (or the runner invoked with a
+  pre-resolved callable) before they can be run via the new CLI.
+
 ## v0.2.0
 
 ### Fixed

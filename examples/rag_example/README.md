@@ -15,9 +15,9 @@ illustrative only.
 
 ## Files (in reading order)
 
-1. [`round_01_bundle.json`](round_01_bundle.json) — what the adapter exported
-   after round 1's 40 Optuna trials finished. This is the machine input to
-   the LLM analyst.
+1. [`round_01_bundle.json`](round_01_bundle.json) — what the skill's
+   runner wrote after round 1's 40 Optuna trials finished. This is the
+   machine input to the LLM analyst.
 2. [`round_01_llm_input.md`](round_01_llm_input.md) — how that bundle is
    rendered by the skill's canonical renderer
    [`../../scripts/round_adapter.py::render_llm_input`](../../scripts/round_adapter.py)
@@ -35,6 +35,12 @@ illustrative only.
    - `provenance.parent_config_hash` is a deterministic demonstrative
      sha256 (computed over a fixed placeholder string) — the repo does
      not ship the round-01 initial config separately.
+   - Operator-set fields (`evaluate`, `direction`, `objective_name`,
+     `study_id`) are *not* populated in this example because the
+     walkthrough predates their introduction; in a live setup the LLM
+     MUST carry those forward from the parent config unchanged so the
+     runner can re-invoke the same `evaluate` callable in the next
+     round.
    - `reviewer.kind == "human"` with a populated `approved_at`
      timestamp, demonstrating what a signed-off config looks like.
 5. [`round_02_config.template.json`](round_02_config.template.json) —
@@ -43,8 +49,8 @@ illustrative only.
    for `source_bundle_hash` / `parent_config_hash`, which the adapter
    replaces with real sha256 digests at write time. This file is NOT
    schema-valid on its own and is not expected to validate; it exists
-   to illustrate what the LLM emits before the adapter hashes and
-   signs the artefact.
+   to illustrate what the LLM emits before the skill-owned runner
+   hashes and signs the artefact.
 
 > **Placeholder policy.** Checked-in `*.template.json` files MAY contain
 > the `"__FILL_AT_ADAPTER__"` sentinel. Checked-in `*.json` files that
@@ -58,7 +64,8 @@ illustrative only.
 - The LLM never saw raw RAG training data — only the bundle.
 - Every change in `round_02_config.json` cites a specific bundle field.
 - The config is declarative JSON, not Python. Optuna code stays in the
-  project adapter.
+  skill-owned [`scripts/round_runner.py`](../../scripts/round_runner.py)
+  — no project adapter is written.
 - Coverage enrichment (`statistics.axis_coverage`) and the per-param
   coverage note come from the skill's canonical entry points
   (`build_study_bundle` / `render_llm_input` in

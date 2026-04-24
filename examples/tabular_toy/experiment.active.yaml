@@ -7,10 +7,22 @@
 # On-disk canonical form for hashing is JSON produced by
 #   json.dumps(cfg, sort_keys=True, separators=(",", ":"))
 # — adapters should convert this YAML to JSON before computing config hashes.
+#
+# Run one round with the skill-owned CLI:
+#   python ../../scripts/round_runner.py run \
+#       --config experiment.active.yaml \
+#       --out-bundle run_output/study_bundle.json \
+#       --out-llm-input run_output/llm_input.md
+# (The CLI prepends this file's parent directory to sys.path, so the
+#  'evaluate' pointer below resolves to evaluate.py next to this YAML.)
 
 schema_version: "1.0"
 round_id: "round_01"
 n_trials: 20
+
+evaluate: "evaluate:evaluate"
+direction: "maximize"
+objective_name: "val_auc"
 
 sampler:
   type: "TPESampler"
@@ -53,10 +65,10 @@ search_space:
     type: "categorical"
     choices: ["relu", "gelu"]
 
-# fixed_params are held constant for every trial this round.
-# max_epochs / weight_decay are consumed by train_eval.py outside the
-# Optuna search; keeping them fixed avoids per-trial variance from
-# training budget.
+# fixed_params are held constant for every trial this round and are
+# passed through to evaluate(params) alongside the sampled search-space
+# values. max_epochs / weight_decay are consumed by evaluate.py and kept
+# fixed here to avoid per-trial variance from training budget.
 fixed_params:
   max_epochs: 20
   weight_decay: 0.0001
