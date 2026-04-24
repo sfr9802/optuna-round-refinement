@@ -1,6 +1,6 @@
 ---
 name: refine
-version: 0.3.1
+version: 0.3.2
 description: >
   Round-level Optuna hyperparameter refinement with an LLM-in-the-outer-loop.
   Optuna samples trials; the LLM only analyses a finished round's bundle and
@@ -12,6 +12,7 @@ invocation:
     - "Optuna 한 라운드를 실행하고 다음 라운드 설정까지 정하고 싶을 때"
     - "완료된 study bundle을 분석해 next_round_config.json을 만들어야 할 때"
     - "search space / sampler / fixed params를 라운드 단위로 진화시키려 할 때"
+    - "라운드 N번을 한 번에 자동으로 돌리고 자고 일어나서 결과 확인하고 싶을 때 (auto subcommand)"
   non_triggers:
     - "단일 run 내에서 per-trial 피드백을 LLM에게 받으려 할 때"
     - "objective function 자체를 LLM이 실행/대체하려 할 때"
@@ -76,6 +77,7 @@ And the orchestration CLI in
 
 - `python scripts/round_runner.py run --config <cfg> --out-bundle <b> --out-llm-input <md>`
 - `python scripts/round_runner.py render --bundle <b>`
+- `python scripts/round_runner.py auto --config <cfg> --rounds <N> --llm-cmd <tpl> [--llm-cmd-final <tpl>] --out-dir <dir>` — sleep-mode (§1A)
 
 ## 1. Workflow when invoked from Claude Code
 
@@ -237,6 +239,57 @@ canonical form (see §6). Write the frozen config as
 Summarise: round number, best value, notable axis-coverage findings,
 the diff vs parent config, and next steps. If the user says "run it",
 repeat from Step 3 with the new config.
+
+## 1A. Sleep-mode workflow (`auto` subcommand)
+
+When the user wants the loop to run unattended for N rounds — e.g.
+"run 5 rounds overnight and show me the result in the morning" — drive
+the skill via the `auto` subcommand instead of stepping through §1
+manually. The user MUST choose `--rounds`; never pick a default.
+
+```bash
+python <SKILL_ROOT>/scripts/round_runner.py auto \
+    --config <initial.yaml> \
+    --rounds <N> \
+    --llm-cmd '<per-round LLM invocation with {llm_input} {next_config} ...>' \
+    --llm-cmd-final '<final LLM invocation with {trajectory} {final_report}>' \
+    --out-dir <runs/study_NNN>
+```
+
+What the runner does per round R (1 ≤ R ≤ N):
+
+1. Run Optuna → `<out>/round_RR/{config,bundle,llm_input}.{json,md}`.
+2. If R < N: shell out to `--llm-cmd` with `{llm_input}`, `{bundle}`,
+   `{next_config}`, `{analysis}`, `{round_id}`, `{next_round_id}`
+   placeholders. The skill mechanically rewrites the produced
+   `next_config.json`'s `round_id`, `evaluate`, and provenance fields
+   (`source_round_id`, `source_bundle_hash`, `parent_config_hash`,
+   `kind = "llm_proposed"`, `generated_at` if absent) so the LLM only
+   needs to keep the scientific fields right (search_space, sampler,
+   `rationale`, `diff_summary`).
+3. If R == N AND `--llm-cmd-final` is set: render
+   `<out>/trajectory.md` (compact multi-round summary) and shell out to
+   `--llm-cmd-final` with `{trajectory}`, `{final_report}`, `{out_dir}`.
+4. Always write `<out>/summary.md` (round-by-round artifact index +
+   global best across the study).
+
+**Token cost is linear in N**, not exponential. Per-round calls see
+only that round's bundle; the final call sees a deliberately compact
+trajectory (per-round headline stats + global best + per-round
+coverage notes), NOT a concatenation of every bundle. 5 rounds ≈ 25K
+tokens; 20 rounds ≈ 110K tokens.
+
+The runner caps `--rounds` at `AUTO_LOOP_HARD_CAP = 50` to prevent
+runaway studies. When the user picks N, take it at face value — do
+not negotiate them down — but if they ask for >50 rounds explain the
+cap exists and offer to split the study.
+
+`--llm-cmd` failures retry once by default (`--llm-retries 1`); on the
+final failure the loop stops and preserves all artifacts so far so the
+user can resume manually.
+
+End-to-end runnable demo (no real LLM call):
+[`examples/auto_loop/`](examples/auto_loop/).
 
 ## 2. Project-side contract (what the user writes)
 

@@ -5,6 +5,58 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## v0.3.2
+
+### Added
+- **Sleep-mode auto loop (`auto` subcommand).** `python scripts/round_runner.py auto
+  --config <initial> --rounds <N> --llm-cmd '<tpl>' [--llm-cmd-final '<tpl>']
+  --out-dir <dir>` runs N Optuna rounds back-to-back, shelling out to the user's
+  LLM between each pair of rounds to produce the next-round config and
+  (optionally) once more after the last round for a study-wide review.
+  `--rounds` is a required flag with no default — the user must choose N
+  deliberately. A hard cap of `AUTO_LOOP_HARD_CAP = 50` prevents runaway
+  studies. Failed LLM invocations retry once by default and the loop
+  preserves all prior-round artifacts on the final failure so the user
+  can resume manually.
+- **`render_study_trajectory()` in `scripts/round_adapter.py`** — new canonical
+  renderer that turns N normalised bundles + per-round analyses into a compact
+  multi-round markdown (headline stats table, search-space evolution, importance
+  drift, global best trial, per-round coverage notes, prior LLM analyses). This
+  is the input to `--llm-cmd-final`; token cost is linear in N, not a
+  concatenation of every bundle.
+- **Mechanical-field injection for LLM-produced next configs.** The runner
+  silently rewrites `round_id`, `evaluate`, and `provenance.{kind,
+  source_round_id, source_bundle_hash, parent_config_hash, generated_at}` after
+  loading the LLM's output, so the LLM can be sloppy about mechanical fields
+  and still produce schema-valid configs. The LLM owns only the scientific
+  fields (`search_space`, sampler/pruner, `rationale`, `diff_summary`).
+- **Final-summary prompts** — `prompts/claude_code/final_summary.md` and
+  `prompts/codex/final_summary.md` for the `--llm-cmd-final` step. Both enforce
+  "markdown only, no JSON config" and require quantitative claims to cite a
+  trajectory field.
+- **Runnable auto-loop demo** — `examples/auto_loop/` with `initial_config.yaml`,
+  `stub_llm.py` (offline stub so CI can exercise the full N-round flow without
+  a real LLM call), and a README documenting placeholder substitution, real-LLM
+  invocation patterns for Claude Code and Codex CLI, and the mechanical-field
+  contract.
+- **Auto-loop smoke tests** — `tests/test_auto_loop.py` covers the 3-round
+  artifact tree, schema-valid provenance on every transition, `--rounds`
+  validation, hard-cap enforcement, and clean failure with artifact preservation
+  on a failing `--llm-cmd`.
+
+### Changed
+- `SKILL.md` gains a `§1A` "Sleep-mode workflow" section documenting the
+  `auto` subcommand, placeholder reference, token-cost model, and the
+  "never negotiate the user's `--rounds` down" guidance. A new trigger
+  phrase (자동으로 돌리고 자고 일어나서 결과 확인) routes multi-round
+  requests to `auto` instead of the per-round §1 walkthrough.
+- `README.md` gains a "Sleep-mode auto loop" section between the
+  per-round Quickstart and the low-level Python API.
+
+### Compatibility
+- Fully additive. Existing `run` / `render` subcommands, configs, and
+  bundles are unchanged. The new `auto` subcommand is opt-in.
+
 ## v0.3.1
 
 ### Changed

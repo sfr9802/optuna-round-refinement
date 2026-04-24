@@ -120,6 +120,43 @@ See [`examples/tabular_toy/`](examples/tabular_toy/) for the end-to-end
 See [`examples/rag_example/`](examples/rag_example/) for a domain-level
 walkthrough of the round-to-round artifact contract.
 
+### Sleep-mode auto loop
+
+For "set N rounds and let it run overnight," the skill ships an `auto`
+subcommand that chains rounds together with an LLM call between each
+pair and a study-wide review after the last round. The user MUST
+choose the round count (`--rounds`) — there is no default. The hard
+cap is `AUTO_LOOP_HARD_CAP = 50` rounds.
+
+```bash
+python scripts/round_runner.py auto \
+    --config initial.yaml \
+    --rounds 5 \
+    --llm-cmd 'claude -p "$(cat prompts/claude_code/propose_next_round.md)" < {llm_input} > {next_config}' \
+    --llm-cmd-final 'claude -p "$(cat prompts/claude_code/final_summary.md)" < {trajectory} > {final_report}' \
+    --out-dir runs/study_001/
+```
+
+What you get back:
+
+```
+runs/study_001/
+├── round_01/{config,bundle,llm_input,analysis,next_config}
+├── round_02/...
+├── round_05/{config,bundle,llm_input}    ← last round: no LLM transition
+├── trajectory.md          ← compact multi-round summary fed to --llm-cmd-final
+├── final_report.md        ← LLM's study-wide review
+└── summary.md             ← artifact index + global best
+```
+
+Token cost is **linear in N**, not exponential — per-round calls see
+only that round's bundle (~1.4K tokens), and the final call sees a
+deliberately compact trajectory (per-round headline stats + global best
++ per-round coverage notes), not a concatenation of every bundle.
+
+End-to-end runnable demo (no real LLM required):
+[`examples/auto_loop/`](examples/auto_loop/).
+
 ### Low-level Python API (escape hatch)
 
 For multi-objective studies, distributed storage, custom callbacks, or

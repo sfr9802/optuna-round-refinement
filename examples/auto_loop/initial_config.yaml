@@ -1,0 +1,95 @@
+# initial_config.yaml — entry point for the auto-loop demo.
+#
+# This config is round 1. After round 1 completes, the auto-loop
+# invokes --llm-cmd with this round's llm_input.md and expects the
+# LLM to write the round 2 config; round 2 → round 3; and so on.
+# The skill mechanically overwrites round_id, source_round_id,
+# source_bundle_hash, parent_config_hash, and `evaluate` so the LLM
+# can be sloppy about them.
+#
+# Run with the tabular_toy evaluate function (which does not require
+# any extra deps beyond optuna + numpy + sklearn + torch — see
+# examples/tabular_toy/README.md):
+#
+#   python ../../scripts/round_runner.py auto \
+#     --config examples/auto_loop/initial_config.yaml \
+#     --rounds 3 \
+#     --llm-cmd 'python examples/auto_loop/stub_llm.py per-round --in {llm_input} --out {next_config}' \
+#     --llm-cmd-final 'python examples/auto_loop/stub_llm.py final --in {trajectory} --out {final_report}' \
+#     --out-dir examples/auto_loop/run_output \
+#     --evaluate-search-path examples/tabular_toy
+
+schema_version: "1.0"
+round_id: "round_01"
+n_trials: 8
+
+evaluate: "evaluate:evaluate"
+direction: "maximize"
+objective_name: "val_auc"
+study_id: "auto_loop_demo"
+
+sampler:
+  type: "TPESampler"
+  params:
+    n_startup_trials: 4
+    multivariate: true
+    group: true
+  seed: 42
+
+pruner:
+  type: "MedianPruner"
+  params:
+    n_startup_trials: 3
+    n_warmup_steps: 5
+
+search_space:
+  hidden_units:
+    type: "categorical"
+    choices: [64, 128, 256]
+  num_layers:
+    type: "int"
+    low: 1
+    high: 3
+  dropout:
+    type: "float"
+    low: 0.0
+    high: 0.5
+  learning_rate:
+    type: "float"
+    low: 1.0e-4
+    high: 1.0e-2
+    log: true
+
+fixed_params:
+  max_epochs: 10
+  weight_decay: 0.0001
+  batch_size: 32
+  optimizer: "adam"
+  activation: "relu"
+
+provenance:
+  kind: "initial"
+  source_round_id: null
+  source_bundle_hash: null
+  parent_config_hash: null
+  generated_at: "2026-04-24T12:00:00Z"
+  generated_by:
+    tool: "human"
+    model: null
+    prompt_version: null
+    prompt_path: null
+  reviewer:
+    kind: "human"
+    id: null
+    approved_at: "2026-04-24T12:00:00Z"
+    comments: "Initial round of the auto-loop demo (3 rounds, tabular_toy evaluate)."
+  rationale: |
+    Round 01 of the 3-round auto-loop demo. Wide-ish sweep on 4 axes so
+    the analyst (real LLM or the stub_llm.py) has structural signal to
+    narrow / shift between rounds. Five other knobs are pinned via
+    fixed_params to keep the per-trial cost low.
+
+notes: |
+  Demo of the auto-loop. Use stub_llm.py for offline / CI runs and
+  swap --llm-cmd for `claude -p ...` or `codex exec ...` to drive
+  rounds with a real model.

@@ -96,6 +96,7 @@ __all__ = [
     "write_study_bundle",
     "normalize_study_bundle",
     "render_llm_input",
+    "render_study_trajectory",
     "inject_axis_coverage",
     "compute_axis_coverage",
 ]
@@ -797,6 +798,322 @@ def render_llm_input(
         # downstream renderers MUST NOT be required to interpret
         # handlebars helpers.
         Path(template_path)  # trigger errors early if path is malformed
+
+    if out_path is not None:
+        p = Path(out_path)
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(rendered, encoding="utf-8")
+    return rendered
+
+
+# ---------------------------------------------------------------------------
+# Multi-round trajectory rendering (final-summary input for the LLM)
+# ---------------------------------------------------------------------------
+
+def _round_index(round_id: Any) -> int:
+    """Extract the integer index from a ``round_NN`` id; -1 on failure."""
+    if not isinstance(round_id, str):
+        return -1
+    m = re.match(r"^round_(\d+)$", round_id)
+    if not m:
+        return -1
+    try:
+        return int(m.group(1))
+    except ValueError:
+        return -1
+
+
+def _trajectory_headline_row(bundle: Mapping[str, Any]) -> str:
+    stats = bundle.get("statistics") or {}
+    quantiles = stats.get("quantiles") or {}
+    return (
+        f"| `{bundle.get('round_id', '')}` "
+        f"| {bundle.get('n_trials', '')} "
+        f"| {stats.get('n_complete', '')} "
+        f"| {stats.get('n_pruned', '')} "
+        f"| {stats.get('n_failed', '')} "
+        f"| {stats.get('best_value', '')} "
+        f"| {quantiles.get('p50', stats.get('median_value', ''))} "
+        f"| {stats.get('std_value', '')} |"
+    )
+
+
+def _trajectory_search_space_table(
+    bundles: List[Mapping[str, Any]],
+) -> str:
+    """Per-param column-per-round table showing how the range/choices changed."""
+    round_ids = [b.get("round_id", f"round_{i+1:02d}") for i, b in enumerate(bundles)]
+    all_params: List[str] = []
+    seen: set = set()
+    for b in bundles:
+        for name in (b.get("search_space") or {}).keys():
+            if name not in seen:
+                seen.add(name)
+                all_params.append(name)
+    if not all_params:
+        return "_no params recorded_"
+    header = "| Param | " + " | ".join(f"`{rid}`" for rid in round_ids) + " |"
+    sep = "|-------|" + "|".join(["-------"] * len(round_ids)) + "|"
+    rows = [header, sep]
+    for name in all_params:
+        cells = []
+        for b in bundles:
+            spec = (b.get("search_space") or {}).get(name)
+            if spec is None:
+                # check fixed_params
+                fp = (b.get("fixed_params") or {})
+                if name in fp:
+                    cells.append(f"`fixed={fp[name]}`")
+                else:
+                    cells.append("—")
+            else:
+                rng = _format_range_or_choices(spec)
+                log_marker = " log" if spec.get("log") else ""
+                cells.append(f"`{rng}`{log_marker}")
+        rows.append(f"| `{name}` | " + " | ".join(cells) + " |")
+    return "\n".join(rows)
+
+
+def _trajectory_importances_table(
+    bundles: List[Mapping[str, Any]],
+) -> str:
+    round_ids = [b.get("round_id", f"round_{i+1:02d}") for i, b in enumerate(bundles)]
+    all_params: List[str] = []
+    seen: set = set()
+    for b in bundles:
+        for name in (b.get("param_importances") or {}).keys():
+            if name not in seen:
+                seen.add(name)
+                all_params.append(name)
+    if not all_params:
+        return "_no importances computed across rounds_"
+    header = "| Param | " + " | ".join(f"`{rid}`" for rid in round_ids) + " |"
+    sep = "|-------|" + "|".join(["-------"] * len(round_ids)) + "|"
+    rows = [header, sep]
+    for name in all_params:
+        cells = []
+        for b in bundles:
+            imp = (b.get("param_importances") or {}).get(name)
+            cells.append("—" if imp is None else f"{imp}")
+        rows.append(f"| `{name}` | " + " | ".join(cells) + " |")
+    return "\n".join(rows)
+
+
+def _trajectory_global_best(
+    bundles: List[Mapping[str, Any]],
+) -> Tuple[Optional[Mapping[str, Any]], Optional[str]]:
+    """Return (best_trial, source_round_id) across all rounds.
+
+    Direction is read from the first bundle's ``objective.direction``
+    (defaults to maximize).
+    """
+    if not bundles:
+        return None, None
+    direction = ((bundles[0].get("objective") or {}).get("direction")) or "maximize"
+    best: Optional[Mapping[str, Any]] = None
+    best_round: Optional[str] = None
+    for b in bundles:
+        bt = b.get("best_trial")
+        if not isinstance(bt, Mapping):
+            continue
+        v = bt.get("value")
+        if v is None:
+            continue
+        if best is None:
+            best, best_round = bt, b.get("round_id")
+            continue
+        cur = best.get("value")
+        try:
+            cv = float(cur) if cur is not None else None
+            nv = float(v)
+        except (TypeError, ValueError):
+            continue
+        if cv is None:
+            best, best_round = bt, b.get("round_id")
+        elif direction == "maximize" and nv > cv:
+            best, best_round = bt, b.get("round_id")
+        elif direction == "minimize" and nv < cv:
+            best, best_round = bt, b.get("round_id")
+    return best, best_round
+
+
+def render_study_trajectory(
+    bundles: List[Mapping[str, Any]],
+    *,
+    analyses: Optional[List[Tuple[str, str]]] = None,
+    out_path: Optional[Union[str, Path]] = None,
+) -> str:
+    """Render a multi-round trajectory markdown for the final-summary LLM call.
+
+    The trajectory is what the analyst sees AFTER the auto-loop has
+    finished N rounds. It is intentionally compact (round-level summary
+    statistics + global best + each round's search space) rather than a
+    concatenation of every round's full bundle, so token cost stays
+    linear in N rather than blowing up. Per-trial dumps are NOT included.
+
+    Parameters
+    ----------
+    bundles:
+        Ordered list of normalised study bundles (round 1 first). Each
+        entry must conform to ``schemas/study_bundle.schema.json``.
+    analyses:
+        Optional list of ``(round_id, analysis_markdown)`` pairs — the
+        round-to-round LLM analyses written between rounds. Appended at
+        the end of the trajectory so the final analyst can see what each
+        prior decision was justified by.
+    out_path:
+        Optional path to write the rendered markdown.
+    """
+    if not bundles:
+        raise ValueError("render_study_trajectory requires at least one bundle")
+
+    bundles_sorted = sorted(
+        list(bundles),
+        key=lambda b: _round_index(b.get("round_id")),
+    )
+    objective = (bundles_sorted[0].get("objective") or {})
+    obj_name = objective.get("name", "objective")
+    direction = objective.get("direction", "maximize")
+    best_trial, best_round = _trajectory_global_best(bundles_sorted)
+
+    header = (
+        f"# Study trajectory — {len(bundles_sorted)} rounds\n\n"
+        f"**Objective:** `{obj_name}` ({direction})\n"
+        f"**Rounds:** "
+        + ", ".join(f"`{b.get('round_id', '')}`" for b in bundles_sorted)
+        + "\n"
+    )
+    if best_trial is not None:
+        header += (
+            f"**Global best:** value=`{best_trial.get('value')}` "
+            f"(round `{best_round}`, trial #{best_trial.get('number')})\n"
+        )
+    else:
+        header += "**Global best:** _none — no completed trials found_\n"
+
+    headline_rows = "\n".join(_trajectory_headline_row(b) for b in bundles_sorted)
+    section_1 = (
+        "## 1. Round-by-round headline stats\n\n"
+        "| Round | n_trials | complete | pruned | failed | best | median | std |\n"
+        "|-------|----------|----------|--------|--------|------|--------|-----|\n"
+        f"{headline_rows}\n"
+    )
+
+    section_2 = (
+        "## 2. Search space evolution\n\n"
+        "Each column is one round's frozen search space. `fixed=…` means the\n"
+        "axis was moved out of the search space and held constant in that\n"
+        "round.\n\n"
+        f"{_trajectory_search_space_table(bundles_sorted)}\n"
+    )
+
+    section_3 = (
+        "## 3. Param importances over rounds\n\n"
+        "Importances are normalised per round (rows sum to ~1). Drift across\n"
+        "rounds often signals which axes have been narrowed enough that the\n"
+        "remaining variance shifted to other params.\n\n"
+        f"{_trajectory_importances_table(bundles_sorted)}\n"
+    )
+
+    if best_trial is not None:
+        section_4 = (
+            "## 4. Global best trial\n\n"
+            f"From round `{best_round}`:\n\n"
+            "```json\n"
+            f"{json.dumps(best_trial, indent=2, sort_keys=True)}\n"
+            "```\n"
+        )
+    else:
+        section_4 = "## 4. Global best trial\n\n_No completed trials across the study._\n"
+
+    coverage_lines: List[str] = []
+    for b in bundles_sorted:
+        cov = ((b.get("statistics") or {}).get("axis_coverage")) or {}
+        if not cov:
+            coverage_lines.append(
+                f"- `{b.get('round_id')}` — _axis_coverage absent (legacy / unknown)_"
+            )
+            continue
+        notes = []
+        for name, entry in cov.items():
+            note = entry.get("note") or "—"
+            if note != _NOTE_FULL:
+                notes.append(f"`{name}`: {note}")
+        if notes:
+            coverage_lines.append(
+                f"- `{b.get('round_id')}` — " + "; ".join(notes)
+            )
+        else:
+            coverage_lines.append(
+                f"- `{b.get('round_id')}` — full coverage on all numeric axes"
+            )
+    section_5 = (
+        "## 5. Coverage notes per round\n\n"
+        "Flags **UNSAMPLED EDGE** cases. If a round narrowed against an\n"
+        "unsampled edge, that is an anti-pattern (`docs/anti_patterns.md#a10`)\n"
+        "and the final summary should call it out.\n\n"
+        + "\n".join(coverage_lines) + "\n"
+    )
+
+    if analyses:
+        analysis_blocks: List[str] = []
+        for rid, body in analyses:
+            analysis_blocks.append(
+                f"### Decision after `{rid}`\n\n{body.strip()}\n"
+            )
+        section_6 = (
+            "## 6. Per-round LLM analyses\n\n"
+            "These are the round-to-round transition reports the outer-loop\n"
+            "analyst wrote after each round. They captured the rationale for\n"
+            "the next round's config; reading them in order gives the\n"
+            "narrative arc of the study.\n\n"
+            + "\n".join(analysis_blocks)
+        )
+    else:
+        section_6 = (
+            "## 6. Per-round LLM analyses\n\n"
+            "_No per-round analyses recorded._\n"
+        )
+
+    task = (
+        "---\n\n"
+        "## Your task — final study review\n\n"
+        "You are the outer-loop analyst at the END of an N-round study. The\n"
+        "auto-loop is finished and there is no next round to propose. Produce\n"
+        "a markdown report that:\n\n"
+        "1. **What worked.** Which decisions across rounds materially improved\n"
+        "   the objective? Cite specific rounds and search-space changes.\n"
+        "2. **What did not work.** Which decisions look wrong in hindsight,\n"
+        "   and what would the right call have been with the evidence available\n"
+        "   at the time?\n"
+        "3. **Global best.** State the global best config and the round it\n"
+        "   came from.\n"
+        "4. **Anti-patterns observed.** Did any round narrow against an\n"
+        "   unsampled edge (§5)? Did importance shifts suggest a re-opened\n"
+        "   axis was warranted but skipped?\n"
+        "5. **Recommendation.** Would more rounds likely help, or has the\n"
+        "   study converged? What single change would you make if you ran\n"
+        "   this study again?\n\n"
+        "Output: markdown only. **No JSON config** — this is the final review.\n"
+    )
+
+    rendered = (
+        header
+        + "\n---\n\n"
+        + section_1
+        + "\n"
+        + section_2
+        + "\n"
+        + section_3
+        + "\n"
+        + section_4
+        + "\n"
+        + section_5
+        + "\n"
+        + section_6
+        + "\n"
+        + task
+    )
 
     if out_path is not None:
         p = Path(out_path)
