@@ -9,41 +9,6 @@ refinement with an LLM-in-the-outer-loop**.
 
 ---
 
-## Notes for adopters
-
-A couple of things worth knowing before wiring this into your own workflow:
-
-- **Zero-adapter contract.** The project side provides one file — an
-  `evaluate(params: dict) -> dict | float` function — and a config
-  YAML with an `evaluate: "module:callable"` pointer. The skill's
-  [`scripts/round_runner.py`](scripts/round_runner.py) CLI runs the
-  round end-to-end and delegates bundle construction to
-  [`build_study_bundle(...)`](scripts/round_adapter.py) and rendering
-  to [`render_llm_input(...)`](scripts/round_adapter.py), which own
-  `axis_coverage` enrichment and the per-param coverage note. Projects
-  that need finer control (multi-objective, distributed storage,
-  custom callbacks) can bypass the CLI and call the two library
-  entry points directly — either path gets the safer behaviour with
-  no custom template helpers.
-- **Placeholder policy for checked-in examples.** Files named
-  `*.template.json` MAY contain the `"__FILL_AT_ADAPTER__"` sentinel
-  and are not expected to validate — they represent what the LLM emits
-  before the adapter materialises hashes. Files named `*.json` (no
-  `.template`) are schema-valid materialised examples whose
-  provenance hashes are real sha256 digests (of the canonical source
-  artefact, or of a fixed demonstrative string where no source is
-  shipped). Recompute hashes from your own canonicalised artefacts
-  before wiring any example into a live workflow (see
-  [`SKILL.md`](SKILL.md) §6 and [`docs/design.md`](docs/design.md) §4).
-- **Validated vs. illustrative examples.** The
-  [`examples/rag_example/`](examples/rag_example/) walkthrough is the
-  currently validated example. The
-  [`examples/tabular_toy/`](examples/tabular_toy/) directory is an
-  illustrative portability demonstration only — it is not a benchmark
-  and makes no ML/DL empirical claim.
-
----
-
 ## What this skill is
 
 A portable contract (schemas + prompts + templates + docs) for running
@@ -60,6 +25,68 @@ hyperparameter studies as a sequence of **rounds**:
 
 Each round is self-contained, reproducible, and auditable. The LLM sees only
 the **summarised study bundle** of a finished round, never live trial metrics.
+
+## Quickstart
+
+After installing the skill (see [Install](#install) below) or vendoring
+it into your own repository as `third_party/optuna-round-refinement/`,
+the project side contributes exactly **one file** — an evaluate
+function — and one config YAML. Everything else (Optuna wiring, bundle
+export, axis-coverage enrichment, LLM-input rendering) is owned by the
+skill package.
+
+1. Read [`SKILL.md`](SKILL.md) for the contract.
+2. Write an `evaluate(params: dict) -> dict | float` function in your
+   project — typically a thin wrapper around code you already have. It
+   receives the merged dict of sampled search-space values and
+   `fixed_params`; it returns either a single number (the primary
+   metric) or `{"primary": <number>, "secondary": {...}}`.
+3. Write a config YAML conforming to
+   [`schemas/next_round_config.schema.json`](schemas/next_round_config.schema.json)
+   with an `evaluate:` pointer:
+   ```yaml
+   evaluate: "my_module:evaluate"
+   direction: "maximize"
+   objective_name: "val_auc"
+   round_id: "round_01"
+   n_trials: 20
+   sampler: { type: "TPESampler", params: {}, seed: 42 }
+   pruner:  { type: "MedianPruner", params: {} }
+   search_space: { ... }
+   fixed_params: { ... }
+   provenance: { kind: "initial", ... }
+   ```
+4. Run round 1 with the skill-owned CLI:
+   ```bash
+   python <skill_root>/scripts/round_runner.py run \
+       --config my_config.yaml \
+       --out-bundle run_output/study_bundle.json \
+       --out-llm-input run_output/llm_input.md
+   ```
+   This writes a fully-enriched, schema-validated `study_bundle.json`
+   and the rendered `llm_input.md` — no project-side adapter code
+   required.
+5. Feed `llm_input.md` to the LLM using a prompt from
+   [`prompts/`](prompts/). The LLM produces a `round_report.md` and a
+   draft `next_round_config.json`.
+6. Validate the LLM output against
+   [`schemas/next_round_config.schema.json`](schemas/next_round_config.schema.json),
+   freeze it, and run round 2 by pointing the CLI at the new config.
+   Repeat until budget or stop-condition is hit.
+
+See [`examples/tabular_toy/`](examples/tabular_toy/) for the end-to-end
+"evaluate function only" flow.
+See [`examples/rag_example/`](examples/rag_example/) for a domain-level
+walkthrough of the round-to-round artifact contract.
+
+### Low-level Python API (escape hatch)
+
+For multi-objective studies, distributed storage, custom callbacks, or
+any case the CLI doesn't cover, drop down to the library directly:
+`scripts/round_adapter.py::build_study_bundle(raw, out_path=...)` and
+`render_llm_input(bundle, out_path=...)` own axis-coverage enrichment
+and markdown rendering, so a hand-written driver still gets the safer
+behaviour without re-implementing it.
 
 ## What this skill is *not*
 
@@ -190,68 +217,6 @@ To use the skill from your own project, reference the relevant sections of
 project's `AGENTS.md` — Codex layers `AGENTS.md` files from the git root
 down to your current directory, so nested or vendored copies compose
 automatically.
-
-## Quickstart
-
-After installing the skill (see [Install](#install) above) or vendoring
-it into your own repository as `third_party/optuna-round-refinement/`,
-the project side contributes exactly **one file** — an evaluate
-function — and one config YAML. Everything else (Optuna wiring, bundle
-export, axis-coverage enrichment, LLM-input rendering) is owned by the
-skill package.
-
-1. Read [`SKILL.md`](SKILL.md) for the contract.
-2. Write an `evaluate(params: dict) -> dict | float` function in your
-   project — typically a thin wrapper around code you already have. It
-   receives the merged dict of sampled search-space values and
-   `fixed_params`; it returns either a single number (the primary
-   metric) or `{"primary": <number>, "secondary": {...}}`.
-3. Write a config YAML conforming to
-   [`schemas/next_round_config.schema.json`](schemas/next_round_config.schema.json)
-   with an `evaluate:` pointer:
-   ```yaml
-   evaluate: "my_module:evaluate"
-   direction: "maximize"
-   objective_name: "val_auc"
-   round_id: "round_01"
-   n_trials: 20
-   sampler: { type: "TPESampler", params: {}, seed: 42 }
-   pruner:  { type: "MedianPruner", params: {} }
-   search_space: { ... }
-   fixed_params: { ... }
-   provenance: { kind: "initial", ... }
-   ```
-4. Run round 1 with the skill-owned CLI:
-   ```bash
-   python <skill_root>/scripts/round_runner.py run \
-       --config my_config.yaml \
-       --out-bundle run_output/study_bundle.json \
-       --out-llm-input run_output/llm_input.md
-   ```
-   This writes a fully-enriched, schema-validated `study_bundle.json`
-   and the rendered `llm_input.md` — no project-side adapter code
-   required.
-5. Feed `llm_input.md` to the LLM using a prompt from
-   [`prompts/`](prompts/). The LLM produces a `round_report.md` and a
-   draft `next_round_config.json`.
-6. Validate the LLM output against
-   [`schemas/next_round_config.schema.json`](schemas/next_round_config.schema.json),
-   freeze it, and run round 2 by pointing the CLI at the new config.
-   Repeat until budget or stop-condition is hit.
-
-See [`examples/tabular_toy/`](examples/tabular_toy/) for the end-to-end
-"evaluate function only" flow.
-See [`examples/rag_example/`](examples/rag_example/) for a domain-level
-walkthrough of the round-to-round artifact contract.
-
-### Low-level Python API (escape hatch)
-
-For multi-objective studies, distributed storage, custom callbacks, or
-any case the CLI doesn't cover, drop down to the library directly:
-`scripts/round_adapter.py::build_study_bundle(raw, out_path=...)` and
-`render_llm_input(bundle, out_path=...)` own axis-coverage enrichment
-and markdown rendering, so a hand-written driver still gets the safer
-behaviour without re-implementing it.
 
 ## License
 
