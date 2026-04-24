@@ -25,6 +25,14 @@ example shows the same artifact shape on a second unrelated example
   scoring function. Everything else (Optuna wiring, bundle export,
   schema validation, LLM-input rendering) is owned by the skill
   package — the project does not need to write a thin adapter.
+
+  > **`evaluate.py` and the `evaluate()` function name are arbitrary.**
+  > The config's `evaluate: "evaluate:evaluate"` is a dotted path, not
+  > a naming rule. Any `module:function` works — e.g. a project that
+  > already has `scoring.py:run_trial` would just write
+  > `evaluate: "scoring:run_trial"` in the config and not create a new
+  > file at all. See [SKILL.md §1 Step 2](../../SKILL.md) for the
+  > scan-before-wrap decision tree.
 - A round 01 → round 02 walkthrough with a sample
   [`study_bundle.json`](study_bundle.json), analyst
   [`summary.md`](summary.md), and proposed

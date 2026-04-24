@@ -65,17 +65,23 @@ automatically.
 
 After installing the skill (see [Install](#install) above) or vendoring
 it into your own repository as `third_party/optuna-round-refinement/`,
-the project side contributes exactly **one file** — an evaluate
-function — and one config YAML. Everything else (Optuna wiring, bundle
-export, axis-coverage enrichment, LLM-input rendering) is owned by the
-skill package.
+the project side contributes **one scoring callable** plus one config
+YAML. Everything else (Optuna wiring, bundle export, axis-coverage
+enrichment, LLM-input rendering) is owned by the skill package.
 
-1. Read [`SKILL.md`](SKILL.md) for the contract.
-2. Write an `evaluate(params: dict) -> dict | float` function in your
-   project — typically a thin wrapper around code you already have. It
-   receives the merged dict of sampled search-space values and
-   `fixed_params`; it returns either a single number (the primary
-   metric) or `{"primary": <number>, "secondary": {...}}`.
+1. Read [`SKILL.md`](SKILL.md) for the contract — in particular §1
+   Step 2's scan-before-wrap decision tree.
+2. **Point at an existing `(params: dict) -> number | dict`-shaped
+   function in your project.** File name, function name, and module
+   path are all arbitrary — the config's `evaluate: "module:callable"`
+   is a dotted path, not a naming rule. `scoring:run_trial`,
+   `tests.helpers:_score`, `eval.harness:score_one` all work.
+   Only write a new file if the existing eval is CLI-based (argparse +
+   subprocess) and a minimal wrapper (~30 LOC) is genuinely required.
+   The scoring callable receives the merged dict of sampled
+   search-space values and `fixed_params`, and returns either a single
+   number (the primary metric) or `{"primary": <number>,
+   "secondary": {...}}`.
 3. Write a config YAML conforming to
    [`schemas/next_round_config.schema.json`](schemas/next_round_config.schema.json)
    with an `evaluate:` pointer:

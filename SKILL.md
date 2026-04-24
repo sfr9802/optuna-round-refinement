@@ -1,6 +1,6 @@
 ---
 name: refine
-version: 0.3.0
+version: 0.3.1
 description: >
   Round-level Optuna hyperparameter refinement with an LLM-in-the-outer-loop.
   Optuna samples trials; the LLM only analyses a finished round's bundle and
@@ -48,8 +48,12 @@ When the user invokes this skill in Claude Code, you are driving a
 round-level HPO loop on their project. **Do not ask the user to write
 an adapter.** The project has two artifacts only:
 
-1. An `evaluate(params: dict) -> dict | float` callable somewhere in
-   their code (any Optuna user already has this).
+1. An `(params: dict) -> dict | float`-shaped callable somewhere in
+   their code. Any Optuna user already has this. **File name and
+   function name are arbitrary** — `eval.py:score_trial`,
+   `scripts.tuning:run_one`, `tests.helpers:_score`, anything. The
+   default scan (Step 2a below) finds existing callables; creating a
+   new `evaluate.py` is a last resort, not the default path.
 2. A config YAML / JSON conforming to
    [`schemas/next_round_config.schema.json`](schemas/next_round_config.schema.json)
    with an `evaluate: "module:callable"` pointer to (1).
@@ -92,13 +96,67 @@ If none is found, tell the user what's needed (an initial config with
 `provenance.kind = "initial"`) and offer to draft one next to their
 `evaluate` function.
 
-### Step 2 — Verify the `evaluate` pointer
+### Step 2 — Locate the evaluate callable (mandatory decision tree)
 
-Read the config and confirm `evaluate: "module:callable"` resolves.
-If it does not, either help the user fix the pointer or scan their
-project for a plausible evaluate-shaped function and propose the
-correct spec. Do **not** invent an evaluate function silently — the
-objective is the user's responsibility.
+The `evaluate: "module:callable"` pointer is a **generic dotted path**
+— file name, function name, and directory layout are all arbitrary.
+There is no naming convention to respect and **no requirement to
+create a new `evaluate.py`**. Prefer pointing at code the project
+already has.
+
+Walk this decision tree in order. Do NOT skip to Step 3 until one of
+the branches resolves.
+
+**2a. Scan for a directly-usable existing function.**
+
+Search the project for top-level Python functions shaped like
+`(params: dict) -> number | dict` (or `(**kwargs) -> ...` that can
+accept the same keys). Typical locations:
+
+- files named `eval*.py`, `train*.py`, `objective*.py`, `score*.py`,
+  `run_*.py`, `scoring*.py`,
+- modules under `experiments/`, `tuning/`, `benchmarks/`,
+- test-only helpers in `tests/` that score the stack given a params
+  dict (these sometimes factor the internals nicely).
+
+If a candidate fits, propose `evaluate: "<module>:<function>"` that
+points at it directly and confirm with the user. **Do not create a
+new file in this case.**
+
+**2b. Wrap only when the existing eval is not directly callable.**
+
+Some projects only expose a CLI-based eval (argparse + subprocess
++ file I/O), a singleton-settings loader, or an async pipeline that
+can't be driven by a simple params dict in-process. In that case —
+and only in that case — write the **smallest possible wrapper** that:
+
+- translates the params dict into whatever the existing eval expects
+  (env vars, config object, subprocess argv, …),
+- calls it,
+- returns `{"primary": <number>, "secondary": {...}}` or a bare
+  number.
+
+Confirm the wrapper design with the user before writing. Keep it
+~30 LOC; do not reimplement scoring logic.
+
+**2c. Ask the user when nothing suitable exists, and abort if they
+can't supply one.**
+
+If the scan returns no candidate AND the project has no CLI eval to
+wrap, ASK the user to point at an existing scoring function or to
+provide one. **Do not invent an evaluate function, do not propose a
+"hello world" objective, do not silently skip this step.**
+
+If the user declines or cannot supply a callable within this session,
+**abort the entire skill workflow** — Steps 3–8 do NOT run. Report
+the abort plainly to the user (what you scanned, why nothing fit,
+what input you need to retry).
+
+**2d. Resolve the pointer.**
+
+Once 2a / 2b / 2c has produced a concrete `module:callable`, verify
+it imports and is callable before Step 3. A failed import here must
+also trigger the abort in 2c — fix the pointer or stop.
 
 ### Step 3 — Run the round
 
@@ -184,7 +242,7 @@ repeat from Step 3 with the new config.
 
 | Artifact | Shape | Notes |
 |----------|-------|-------|
-| `evaluate.py` (or any module) | `def evaluate(params: dict) -> dict \| float` | Return `{"primary": <num>, "secondary": {...}}` or just a number. The runner merges `fixed_params` + sampled search-space values before calling. |
+| any `.py` with a scoring function | `def <any_name>(params: dict) -> dict \| float` | Return `{"primary": <num>, "secondary": {...}}` or just a number. File name, function name, and module path are arbitrary — the config's `evaluate: "module:callable"` pointer resolves them. The runner merges `fixed_params` + sampled search-space values before calling. |
 | config YAML/JSON | conforms to `schemas/next_round_config.schema.json` | Must include `evaluate: "mod:func"`. Operator-set fields (`evaluate`, `direction`, `objective_name`, `study_id`) typically carry forward unchanged across rounds. |
 
 The user does **not** write:
@@ -192,7 +250,9 @@ The user does **not** write:
 - adapter code that builds a raw bundle dict,
 - `suggest_*` dispatch,
 - `axis_coverage` / `boundary_hits` computation,
-- template-side handlebars helpers.
+- template-side handlebars helpers,
+- a new file named `evaluate.py` just to satisfy a naming convention —
+  the scoring function can live in any existing module (see Step 2a).
 
 ## 3. When **not** to use this skill
 

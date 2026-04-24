@@ -5,6 +5,37 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## v0.3.1
+
+### Changed
+- **SKILL.md Step 2 rewritten** as a mandatory four-branch decision
+  tree: (2a) scan the project for an existing
+  `(params: dict) -> number | dict`-shaped function and point at it
+  directly; (2b) write a minimal wrapper ONLY when the existing eval
+  is CLI-shaped (argparse + subprocess, singleton-settings loader,
+  async pipeline that can't run in-process); (2c) ask the user to
+  supply a callable when the scan finds nothing, and **abort the
+  entire workflow** (Steps 3–8 do not run) if the user can't supply
+  one; (2d) verify the pointer imports and is callable before Step 3.
+  The scan-before-wrap ordering and the explicit abort gate prevent
+  the skill from silently inventing an objective or coaxing users
+  into creating a new `evaluate.py` when existing code suffices.
+- Clarified in the SKILL.md TL;DR, the tabular_toy README, and the
+  root README that `evaluate.py` / the `evaluate()` function name
+  are **arbitrary** — the config's `evaluate: "module:callable"` is a
+  dotted path, not a naming rule. `scoring:run_trial`,
+  `tests.helpers:_score`, `eval.harness:score_one` all work. The
+  tabular_toy file/function name is readability convenience, not a
+  convention adopters must follow.
+- Root README Quickstart step 2 now leads with "point at an existing
+  function" rather than "write an evaluate function", aligning the
+  user-facing quickstart with the SKILL.md decision tree.
+
+### Compatibility
+- No code, schema, or on-disk artefact changes. Purely a workflow /
+  documentation clarification release. Existing v0.3.0 configs and
+  bundles continue to validate and run unchanged.
+
 ## v0.3.0
 
 ### Added
