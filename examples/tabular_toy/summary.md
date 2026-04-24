@@ -21,10 +21,10 @@
 |---|--------|--------|----------------|----------|
 | 0 | freeze | `optimizer` | `categorical{adam, adamw}` → `"adamw"` | `param_importances.optimizer=0.22`; all 4 trials in `clusters[0]` use `adamw`; top-5 trials (7,12,15,18,9) all use `adamw` |
 | 1 | freeze | `activation` | `categorical{relu, gelu}` → `"gelu"` | top 4 trials (7,12,15,18) all use `gelu`; `param_importances.activation=0.09` is low enough to freeze cheaply |
-| 2 | narrow | `learning_rate` | `float[1e-4, 1e-2] log` → `float[5e-4, 5e-3] log` | top-5 trials span `lr ∈ [1.2e-3, 2.5e-3]`; `boundary_hits.learning_rate.low=1` and `.high=1` both in PRUNED/FAIL |
+| 2 | narrow | `learning_rate` | `float[1e-4, 1e-2] log` → `float[5e-4, 5e-3] log` | top-5 trials span `lr ∈ [1.2e-3, 2.5e-3]`; `axis_coverage.learning_rate = [6e-4, 3e-3]`; `boundary_hits.learning_rate.low=1` and `.high=1` are both PRUNED/FAIL (attempted-but-weak, sampled-but-no-COMPLETE) |
 | 3 | narrow | `hidden_units` | `categorical{64,128,256,512}` → `categorical{128,256,512}` | `hidden_units=64` did not appear in any top-5 trial; `param_importances.hidden_units=0.16` so worth keeping as categorical |
-| 4 | narrow | `num_layers` | `int[1, 4]` → `int[2, 3]` | top-4 cluster uses `num_layers ∈ {2, 3}`; `boundary_hits.num_layers.high=3` all PRUNED/FAIL; `low=3` mostly low-AUC |
-| 5 | narrow | `dropout` | `float[0.0, 0.5]` → `float[0.0, 0.25]` | top-5 trials span `dropout ∈ [0.05, 0.20]`; `boundary_hits.dropout.high=2` only in PRUNED/FAIL |
+| 4 | narrow | `num_layers` | `int[1, 4]` → `int[2, 3]` | top-4 cluster uses `num_layers ∈ {2, 3}`; `axis_coverage.num_layers = [1, 3]`; `boundary_hits.num_layers.high=3` are all PRUNED/FAIL (attempted-but-weak at `num_layers=4`); `boundary_hits.num_layers.low=3` are mostly low-AUC COMPLETE |
+| 5 | narrow | `dropout` | `float[0.0, 0.5]` → `float[0.0, 0.25]` | top-5 trials span `dropout ∈ [0.05, 0.20]`; `axis_coverage.dropout = [0.05, 0.35]`; `boundary_hits.dropout.high=2` only in PRUNED/FAIL (attempted-but-weak). Lower edge 0.0 is **UNSAMPLED EDGE** with `boundary_hits.dropout.low=0` — the new range keeps `low=0.0` (no narrow on the lower side) because narrowing against a never-tried edge is forbidden (see `docs/anti_patterns.md#a10`). |
 | 6 | keep   | `batch_size` | unchanged `categorical{16,32,64,128}` | `param_importances.batch_size=0.02` is low but top trials span 3 of 4 choices (32,64,16) — no single value clearly dominates |
 
 Sampler / pruner unchanged. `n_trials` raised from 20 → 25 (narrower space

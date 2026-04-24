@@ -19,8 +19,11 @@ illustrative only.
    after round 1's 40 Optuna trials finished. This is the machine input to
    the LLM analyst.
 2. [`round_01_llm_input.md`](round_01_llm_input.md) — how that bundle is
-   rendered with [`../../templates/llm_input.md`](../../templates/llm_input.md)
-   for the LLM. This is the human-readable input to the LLM analyst.
+   rendered by the skill's canonical renderer
+   [`../../scripts/round_adapter.py::render_llm_input`](../../scripts/round_adapter.py)
+   (which fills [`../../templates/llm_input.md`](../../templates/llm_input.md)
+   AND resolves the coverage-note column inside the package). This is the
+   human-readable input to the LLM analyst.
 3. [`round_01_analysis.md`](round_01_analysis.md) — the round report the LLM
    emitted, filled from [`../../templates/round_report.md`](../../templates/round_report.md).
 4. [`round_02_config.json`](round_02_config.json) — the next-round config the

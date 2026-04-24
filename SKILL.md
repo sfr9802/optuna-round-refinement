@@ -39,6 +39,18 @@ dependencies:
 
 # SKILL.md — optuna-round-refinement
 
+## 0. Adapter contract at a glance
+
+> **Use `build_study_bundle(...)` and `render_llm_input(...)` from
+> [`scripts/round_adapter.py`](scripts/round_adapter.py).** Coverage
+> enrichment (`statistics.axis_coverage`) and coverage notes are
+> handled internally by the skill package. Downstream projects do
+> **not** need to add custom adapters, compute coverage on the client
+> side, or register a custom template/Handlebars helper. Upgrading the
+> skill package is sufficient to get the safer boundary-handling
+> behaviour; no new imports or function calls are required of an
+> adapter beyond these two canonical entry points.
+
 ## 1. When to use this skill
 
 Use it **between rounds** of an Optuna study, once the current round's trials
@@ -70,9 +82,14 @@ The project-side adapter MUST provide, per round:
 
 | Field | Source | Notes |
 |-------|--------|-------|
-| `study_bundle.json` | `export_study_bundle(study)` | conforms to schema |
-| `llm_input.md` | render template | bundle → markdown |
+| `study_bundle.json` | `build_study_bundle(raw, out_path=...)` | skill-owned; enriches axis_coverage + notes, validates, writes |
+| `llm_input.md` | `render_llm_input(bundle, out_path=...)` | skill-owned; fills the template and bakes in the coverage-note column |
 | `parent_config` | previous `next_round_config.json` (if any) | for provenance |
+
+Neither `build_study_bundle` nor `render_llm_input` requires downstream
+coverage logic or a custom template helper. Upgrading the skill package
+gives the adapter the safer behaviour with no new imports or calls
+beyond these two entry points.
 
 The first round's input is the **initial config**, not a bundle — the LLM is
 not invoked before round 1.
@@ -95,14 +112,18 @@ The LLM MUST produce, for each transition R → R+1:
  │  Round R (Optuna, offline)                                           │
  │  1. load round_R_config.json                                         │
  │  2. run Optuna study with frozen search space                        │
- │  3. on completion: export_study_bundle() → round_R_bundle.json       │
- │  4. validate bundle against schemas/study_bundle.schema.json         │
+ │  3. on completion: build_study_bundle(raw, out_path=…) writes the    │
+ │     bundle with axis_coverage + coverage notes already baked in and  │
+ │     schema-validated — no adapter-side coverage logic needed.        │
  └──────────────────────────────────────────────────────────────────────┘
                                  │
                                  ▼
  ┌──────────────────────────────────────────────────────────────────────┐
  │  Round R → R+1 transition (LLM analyst, outer loop)                  │
- │  5. render bundle with templates/llm_input.md                        │
+ │  4. render bundle via scripts/round_adapter.py::render_llm_input     │
+ │     (package-owned; fills templates/llm_input.md and resolves the    │
+ │     coverage-note column — no downstream helper required).           │
+ │  5. (LLM input is now on disk)                                       │
  │  6. run prompt: prompts/<tool>/analyze_round.md                      │
  │     → produces round_R_analysis.md                                   │
  │  7. run prompt: prompts/<tool>/propose_next_round.md                 │
@@ -132,18 +153,43 @@ Configs missing any of these MUST be rejected by the adapter.
 
 ## 7. Separation: core vs. project adapter
 
-This skill provides only:
+This skill provides:
 
-- schemas, prompts, templates, docs, examples
+- schemas, prompts, templates, docs, examples,
+- a small set of package-owned helpers in `scripts/round_adapter.py` that
+  take responsibility for every safety-critical bundle enrichment step —
+  **not** shims the adapter has to call on top of its own logic:
+  - `build_study_bundle(raw, out_path=None, validate=True)` — canonical
+    constructor (normalises axis_coverage, generates the per-param
+    coverage note, schema-validates, optionally writes).
+  - `load_study_bundle(path, validate=True)` — canonical reader that
+    safe-normalises the loaded bundle (legacy bundles without
+    axis_coverage stay "coverage unknown", as required by
+    `docs/anti_patterns.md#a10`).
+  - `write_study_bundle(bundle, out_path)` — normalise + validate + write.
+  - `normalize_study_bundle(bundle)` — safe top-up used internally by
+    the loaders; never stomps on trusted axis_coverage values from disk.
+  - `render_llm_input(bundle, out_path=None)` — canonical markdown
+    renderer that fills `templates/llm_input.md` AND resolves the
+    coverage-note column inside the package. Projects do NOT need to
+    register a `coverage_note` handlebars helper, extend the template
+    context, or compute the note on the adapter side.
 
 The project side provides:
 
-- `export_study_bundle(study) → dict` — serialises an Optuna study to the bundle schema
-- `apply_next_round_config(cfg) → optuna.Study` — builds an Optuna study from the config
-- `render_llm_input(bundle, out_path)` — fills `templates/llm_input.md`
-- `validate_and_hash(cfg_path) → config_hash` — jsonschema + sha256
+- `export_study_bundle(study) → dict` — serialises an Optuna study to
+  the bundle schema, then delegates to the skill's
+  `build_study_bundle` for axis-coverage + coverage-note enrichment
+  and schema validation.
+- `apply_next_round_config(cfg) → optuna.Study` — builds an Optuna
+  study from the config.
+- `validate_and_hash(cfg_path) → config_hash` — jsonschema + sha256.
 
-No adapter code lives in this repo.
+The project adapter is NOT expected to author coverage-related logic.
+Upgrading this skill package gives the adapter the safer behaviour
+automatically as long as bundles go through `build_study_bundle` /
+`load_study_bundle` — no new import and no new call are needed beyond
+what the adapter already wires up.
 
 ## 8. Forbidden patterns (enforcement)
 

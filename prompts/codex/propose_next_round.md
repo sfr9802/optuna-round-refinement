@@ -28,10 +28,44 @@ For every param currently in the search space, pick exactly one:
 `keep | narrow | shift | expand | freeze | remove | split`.
 
 Decide on:
-- sampler change (default: keep),
+- sampler change (default: keep). If `statistics.axis_coverage` reveals
+  several UNSAMPLED EDGEs, prefer a one-round switch to `RandomSampler`
+  over another TPE round.
 - pruner change (default: keep),
 - `n_trials` (default: same as parent round),
 - `stop_conditions` (always include; do not leave empty).
+
+## NARROW guardrails (safety rule, not a suggestion)
+
+`narrow` is only safe when the side being discarded has been tested and
+found weak. Zero boundary hits on a side is **ambiguous** — it could mean
+"tested and weak" or "never tested". See `docs/anti_patterns.md#a10`.
+
+`narrow` is allowed only when ALL of the following hold:
+
+1. `statistics.axis_coverage.<p>.sampled_max >= new_high` (upper narrow)
+   or `statistics.axis_coverage.<p>.sampled_min <= new_low` (lower
+   narrow). The new band must sit inside the **sampled** range, not just
+   inside the configured range.
+2. At least 2 trials exist on the discarded side.
+3. Evidence on the discarded side is consistently weaker or non-improving
+   (top_trials cluster elsewhere, or that side is mostly PRUNED/FAIL).
+4. The boundary on that side is **not** an UNSAMPLED EDGE. An
+   UNSAMPLED EDGE is `axis_coverage.<p>.sampled_<side>` not reaching
+   `search_space.<p>.<side>`. Narrowing against an UNSAMPLED EDGE is
+   allowed only when `boundary_hits.<p>.<side>` > 0 AND the terminal
+   trials at that edge are consistently PRUNED/FAIL; evidence MUST
+   cite all three (`axis_coverage`, `boundary_hits`, and the
+   PRUNED/FAIL state). If `boundary_hits.<p>.<side>` == 0 against an
+   UNSAMPLED EDGE, narrow on that side is forbidden.
+5. If `statistics.axis_coverage` is absent (legacy bundle), `narrow` MUST
+   NOT be justified by `boundary_hits` alone — prefer `keep` or propose a
+   random-sampler exploration round.
+
+If a boundary is UNSAMPLED, prefer `keep`, a random-sampler exploration
+round, or `expand`. **Never narrow against an unsampled boundary.** A
+prior narrowing whose rationale is invalidated by a new coverage gap is
+valid grounds for `expand` (re-open) this round.
 
 ## Required `provenance`
 
@@ -60,6 +94,10 @@ Decide on:
 - No per-trial steering, no mid-round changes, no LLM-as-objective.
 - Every `diff_summary[*]` has a non-empty `evidence` string referencing a
   real bundle field.
+- **Every `narrow` row's evidence MUST cite
+  `statistics.axis_coverage.<p>`** (or explicitly acknowledge "coverage
+  unknown" for legacy bundles, which also forbids narrowing on
+  `boundary_hits` alone). See A10 in `docs/anti_patterns.md`.
 - No raw data / PII / training examples in `rationale` or `notes`.
 - For "large changes" (drop important param, range expanded >10×, sampler
   family swap, study split), leave `reviewer.approved_at = null` so a

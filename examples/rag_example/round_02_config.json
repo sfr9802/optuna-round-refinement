@@ -75,28 +75,28 @@
         "target": "top_k",
         "before": { "type": "int", "low": 1,  "high": 20 },
         "after":  { "type": "int", "low": 6,  "high": 14 },
-        "evidence": "top_trials span top_k in [8,12]; statistics.boundary_hits.top_k.high=3 are all PRUNED/FAIL"
+        "evidence": "top_trials span top_k in [8,12]; statistics.axis_coverage.top_k.sampled_min=3, sampled_max=14 so new band [6,14] sits inside the sampled range; statistics.boundary_hits.top_k.high=3 are all PRUNED/FAIL (sampled-but-poor, not unsampled)"
       },
       {
         "action": "narrow",
         "target": "chunk_size",
         "before": { "type": "int", "low": 128, "high": 1024, "step": 64 },
         "after":  { "type": "int", "low": 448, "high": 768,  "step": 64 },
-        "evidence": "top_trials span chunk_size in [512,704]; boundary_hits.chunk_size.high=2 only in PRUNED/FAIL"
+        "evidence": "top_trials span chunk_size in [512,704]; statistics.axis_coverage.chunk_size.sampled_min=256, sampled_max=832 so new band [448,768] sits inside the sampled range; boundary_hits.chunk_size.high=2 only in PRUNED/FAIL"
       },
       {
         "action": "narrow",
         "target": "chunk_overlap",
         "before": { "type": "float", "low": 0.0, "high": 0.5 },
         "after":  { "type": "float", "low": 0.1, "high": 0.3 },
-        "evidence": "top_trials span chunk_overlap in [0.15,0.25]; boundary_hits.chunk_overlap.high=3 only in PRUNED/FAIL"
+        "evidence": "top_trials span chunk_overlap in [0.15,0.25]; statistics.axis_coverage.chunk_overlap.sampled_min=0.1, sampled_max=0.4 so new band [0.1,0.3] sits inside the sampled range; boundary_hits.chunk_overlap.high=3 only in PRUNED/FAIL"
       },
       {
         "action": "narrow",
         "target": "temperature",
         "before": { "type": "float", "low": 0.0, "high": 1.0 },
         "after":  { "type": "float", "low": 0.0, "high": 0.2 },
-        "evidence": "top_trials span temperature in [0.0,0.1]; boundary_hits.temperature.low=6 concentrated at 0.0"
+        "evidence": "top_trials span temperature in [0.0,0.1]; statistics.axis_coverage.temperature.sampled_min=0.0, sampled_max=0.9 so new band [0.0,0.2] sits inside the sampled range; boundary_hits.temperature.low=6 concentrated at 0.0"
       }
     ]
   },

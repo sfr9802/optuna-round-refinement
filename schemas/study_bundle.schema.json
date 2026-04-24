@@ -126,12 +126,27 @@
         },
         "boundary_hits": {
           "type": "object",
-          "description": "Per-param count of trials that landed at the low or high boundary.",
+          "description": "Per-param count of trials that landed at the low or high boundary. NOTE: boundary_hits.<p>.high=0 is AMBIGUOUS on its own — it can mean 'the upper edge was sampled and performed poorly' OR 'the upper edge was never sampled'. To disambiguate, also inspect statistics.axis_coverage.<p>.",
           "additionalProperties": {
             "type": "object",
             "properties": {
               "low":  { "type": "integer", "minimum": 0 },
               "high": { "type": "integer", "minimum": 0 }
+            }
+          }
+        },
+        "axis_coverage": {
+          "type": "object",
+          "description": "Per-param coverage of the configured range by valid COMPLETE trials. Disambiguates 'unsampled edge' from 'sampled-but-poor edge' that boundary_hits alone cannot distinguish. OPTIONAL for backward compatibility: a bundle without axis_coverage must be treated as 'coverage unknown' and boundary_hits alone MUST NOT justify narrowing. Populated automatically by the skill's canonical bundle entry points (scripts/round_adapter.py::build_study_bundle / load_study_bundle / normalize_study_bundle). Downstream adapters do NOT need to compute this field or the per-entry 'note' by hand.",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["sampled_min", "sampled_max", "unique_count"],
+            "properties": {
+              "sampled_min":  { "type": ["number", "integer", "null"], "description": "Minimum param value across valid COMPLETE trials. null when no samples exist." },
+              "sampled_max":  { "type": ["number", "integer", "null"], "description": "Maximum param value across valid COMPLETE trials. null when no samples exist." },
+              "unique_count": { "type": "integer", "minimum": 0, "description": "Number of distinct sampled values across valid COMPLETE trials." },
+              "note":         { "type": "string", "description": "Human-readable coverage classification. Populated automatically by the skill package (scripts/round_adapter.py::_classify_coverage). Expected values: 'full coverage', 'upper edge UNSAMPLED', 'lower edge UNSAMPLED', 'lower edge UNSAMPLED; upper edge UNSAMPLED', 'no valid completes — coverage unknown for this axis'. OPTIONAL for backward compatibility: a bundle without this field is still valid, and the skill's template renderer will compute it on the fly." }
             }
           }
         }

@@ -13,6 +13,14 @@ refinement with an LLM-in-the-outer-loop**.
 
 A couple of things worth knowing before wiring this into your own workflow:
 
+- **Adapter contract, in one line.** Use
+  [`build_study_bundle(...)`](scripts/round_adapter.py) to write a
+  bundle and [`render_llm_input(...)`](scripts/round_adapter.py) to
+  produce the LLM markdown. Coverage enrichment (axis_coverage) and
+  coverage notes are handled internally by the skill package.
+  Downstream projects do **not** need to add custom adapters or
+  template helpers. Upgrading this package is sufficient to get the
+  safer boundary-handling behaviour.
 - **Example hashes are placeholders, not verified digests.** Every
   hash-looking value in [`examples/`](examples/) is either `null`, the
   sentinel `"__FILL_AT_ADAPTER__"`, or an explicit `<PLACEHOLDER …>`
@@ -178,12 +186,21 @@ After installing the skill (see [Install](#install) above) or vendoring it
 into your own repository as `third_party/optuna-round-refinement/`:
 
 1. Read [`SKILL.md`](SKILL.md) for the contract.
-2. Implement a thin adapter in your repo:
-   - `export_study_bundle(study) -> StudyBundle`
-   - `apply_next_round_config(config) -> OptunaStudy`
+2. Implement a thin adapter in your repo. Delegate bundle enrichment
+   (axis_coverage, coverage notes) and markdown rendering to the
+   skill-owned helpers in
+   [`scripts/round_adapter.py`](scripts/round_adapter.py) — the adapter
+   does NOT author coverage logic by hand:
+   - `export_study_bundle(study) -> StudyBundle` — builds the raw dict
+     and returns `build_study_bundle(raw, out_path=...)`.
+   - `apply_next_round_config(config) -> OptunaStudy` — translates the
+     validated config into an Optuna study.
 3. Run round 1 with your normal Optuna setup.
-4. Render the bundle with [`templates/llm_input.md`](templates/llm_input.md)
-   and feed it to the LLM using a prompt from [`prompts/`](prompts/).
+4. Render the bundle with the shipped renderer
+   [`scripts/round_adapter.py::render_llm_input`](scripts/round_adapter.py)
+   (fills [`templates/llm_input.md`](templates/llm_input.md) and bakes
+   in the coverage-note column) and feed it to the LLM using a prompt
+   from [`prompts/`](prompts/).
 5. Validate the LLM output against
    [`schemas/next_round_config.schema.json`](schemas/next_round_config.schema.json).
 6. Run round 2. Repeat until budget or stop-condition is hit.

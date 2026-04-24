@@ -77,6 +77,11 @@
       "num_layers":    { "low": 3, "high": 3 },
       "dropout":       { "low": 0, "high": 2 },
       "learning_rate": { "low": 1, "high": 1 }
+    },
+    "axis_coverage": {
+      "num_layers":    { "sampled_min": 1,       "sampled_max": 3,       "unique_count": 3, "note": "upper edge UNSAMPLED" },
+      "dropout":       { "sampled_min": 0.05,    "sampled_max": 0.35,    "unique_count": 7, "note": "lower edge UNSAMPLED; upper edge UNSAMPLED" },
+      "learning_rate": { "sampled_min": 0.0006,  "sampled_max": 0.003,   "unique_count": 9, "note": "lower edge UNSAMPLED; upper edge UNSAMPLED" }
     }
   },
   "param_importances": {

@@ -39,14 +39,25 @@ Fixed params: `{ "hybrid_alpha": 0.5 }`
 | `temperature` | 0.06 |
 | `chunk_overlap` | 0.03 |
 
-## 4. Boundary hits
+## 4. Boundary hits & axis coverage
 
-Trials that landed at the low / high edge of each param's range:
+> **Read this carefully.** `boundary_hits.<p>.high = 0` alone is AMBIGUOUS.
+> It can mean *"upper edge was sampled and performed poorly"* OR *"upper
+> edge was never sampled"*. These two cases must be handled differently.
+> The `axis_coverage` columns below disambiguate them. If `axis_coverage`
+> is absent from the bundle, coverage is **unknown** — do NOT use
+> `boundary_hits` alone to justify narrowing.
 
-- `top_k`: low=0, high=3
-- `chunk_size`: low=1, high=2
-- `chunk_overlap`: low=2, high=3
-- `temperature`: low=6, high=1
+| Param           | Configured    | Sampled (min…max) | Unique | Boundary hits (low / high) | Coverage note                                |
+|-----------------|---------------|-------------------|--------|----------------------------|----------------------------------------------|
+| `top_k`         | `[1, 20]`     | `3 … 14`          | 10     | 0 / 3                       | lower edge UNSAMPLED; upper edge UNSAMPLED   |
+| `chunk_size`    | `[128, 1024]` | `256 … 832`       | 9      | 1 / 2                       | lower edge UNSAMPLED; upper edge UNSAMPLED   |
+| `chunk_overlap` | `[0.0, 0.5]`  | `0.1 … 0.4`       | 8      | 2 / 3                       | lower edge UNSAMPLED; upper edge UNSAMPLED   |
+| `temperature`   | `[0.0, 1.0]`  | `0.0 … 0.9`       | 14     | 6 / 1                       | upper edge UNSAMPLED                         |
+
+If a row shows **"upper edge UNSAMPLED"** or **"lower edge UNSAMPLED"**,
+treat `boundary_hits.<p>.<side> = 0` on that side as *lack of evidence*,
+not as *negative evidence*. Do **not** cite it as a reason to narrow.
 
 ## 5. Best trial
 
@@ -107,3 +118,7 @@ You are the outer-loop analyst. Read the bundle above and produce:
   `provenance.rationale` and `provenance.diff_summary[*].evidence`.
 - Fill all required `provenance` fields. Use
   `provenance.kind = "llm_proposed"`.
+- **Never narrow against an UNSAMPLED EDGE** (see section 4 and
+  `docs/anti_patterns.md#a10`). If `axis_coverage` is absent, treat
+  coverage as unknown and do NOT use `boundary_hits` alone to justify
+  narrowing.

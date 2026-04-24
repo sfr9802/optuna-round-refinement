@@ -130,7 +130,7 @@
         "rationale": {
           "type": "string",
           "minLength": 1,
-          "description": "Why each change was made. MUST cite bundle fields (param_importances, boundary_hits, top_trials, …)."
+          "description": "Why each change was made. MUST cite bundle fields (param_importances, boundary_hits, axis_coverage, top_trials, …). For 'narrow' actions the evidence MUST include axis_coverage (or acknowledge 'coverage unknown' for legacy bundles); see docs/anti_patterns.md#a10."
         },
         "diff_summary": {
           "type": "array",

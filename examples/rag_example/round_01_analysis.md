@@ -20,10 +20,10 @@
 |---|--------|--------|----------------|----------|
 | 0 | freeze | `rerank_model` | `categorical{none, base, large}` → `"bge-reranker-large"` | `param_importances.rerank_model=0.41`; all 6 trials in `clusters[0]` use `large` |
 | 1 | freeze | `embed_model`  | `categorical{3-small, 3-large, bge-m3}` → `"text-embedding-3-large"` | `param_importances.embed_model=0.27`; top trials 7/12/18/23/31/38 all use `3-large` |
-| 2 | narrow | `top_k` | `int[1, 20]` → `int[6, 14]` | `top_trials` span [8, 12]; `boundary_hits.top_k.high=3` but 3 of them are `FAIL`/`PRUNED` |
-| 3 | narrow | `chunk_size` | `int[128, 1024] step 64` → `int[448, 768] step 64` | top 6 trials span [512, 704]; `boundary_hits.chunk_size.high=2` only in pruned trials |
-| 4 | narrow | `chunk_overlap` | `float[0.0, 0.5]` → `float[0.1, 0.3]` | top trials span [0.15, 0.25]; `boundary_hits.chunk_overlap.high=3` only in pruned/failed trials |
-| 5 | narrow | `temperature` | `float[0.0, 1.0]` → `float[0.0, 0.2]` | top 6 trials span [0.0, 0.1]; `boundary_hits.temperature.low=6` concentrated at 0.0 |
+| 2 | narrow | `top_k` | `int[1, 20]` → `int[6, 14]` | `top_trials` span [8, 12]; `axis_coverage.top_k = [3,14]` so [6,14] sits inside the sampled range; `boundary_hits.top_k.high=3` are all `FAIL`/`PRUNED` (sampled-but-poor, not unsampled) |
+| 3 | narrow | `chunk_size` | `int[128, 1024] step 64` → `int[448, 768] step 64` | top 6 trials span [512, 704]; `axis_coverage.chunk_size = [256, 832]` so [448,768] sits inside sampled range; `boundary_hits.chunk_size.high=2` only in pruned trials |
+| 4 | narrow | `chunk_overlap` | `float[0.0, 0.5]` → `float[0.1, 0.3]` | top trials span [0.15, 0.25]; `axis_coverage.chunk_overlap = [0.1, 0.4]` so [0.1,0.3] sits inside sampled range; `boundary_hits.chunk_overlap.high=3` only in pruned/failed trials |
+| 5 | narrow | `temperature` | `float[0.0, 1.0]` → `float[0.0, 0.2]` | top 6 trials span [0.0, 0.1]; `axis_coverage.temperature = [0.0, 0.9]` (low edge IS sampled); `boundary_hits.temperature.low=6` concentrated at 0.0 |
 
 No sampler / pruner changes. n_trials = 50 (up from 40; narrower space
 gets finer coverage).

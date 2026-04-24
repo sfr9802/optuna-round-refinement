@@ -73,7 +73,7 @@ provenance:
       target: "lr"
       before: {type: "float", low: 1.0e-5, high: 1.0e-1, log: true}
       after:  {type: "float", low: 1.0e-4, high: 1.0e-2, log: true}
-      evidence: "param_importances.lr=0.72; top_trials clustered in [3e-4, 5e-3]"
+      evidence: "param_importances.lr=0.72; top_trials clustered in [3e-4, 5e-3]; statistics.axis_coverage.lr.sampled_min=5e-5, sampled_max=8e-2 so new band [1e-4, 1e-2] sits inside the sampled range on both sides (not narrowing against an UNSAMPLED EDGE)"
     - action: "freeze"
       target: "dropout"
       before: {type: "float", low: 0.0, high: 0.5}
@@ -83,7 +83,7 @@ provenance:
       target: "n_layers"
       before: {type: "int", low: 2, high: 4}
       after:  {type: "int", low: 2, high: 6}
-      evidence: "boundary_hits.n_layers.high=4/10 in top trials"
+      evidence: "boundary_hits.n_layers.high=4/10 in top trials; statistics.axis_coverage.n_layers.sampled_max=4 reaches the configured high — best value at a sampled upper boundary, still improving, so expand rather than narrow"
 
 notes: |
   Remember: search space is frozen for all 50 trials of round_02.

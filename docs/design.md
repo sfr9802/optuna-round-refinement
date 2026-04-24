@@ -51,16 +51,32 @@ The LLM may propose any of the following between rounds:
 
 | Action | Example | When appropriate |
 |--------|---------|------------------|
-| **Narrow** | `lr: [1e-5, 1e-1]` → `[1e-4, 1e-2]` | Best trials cluster in a sub-range. |
-| **Shift** | `batch_size: [8, 64]` → `[32, 256]` | Best trials hit the upper boundary. |
-| **Expand** | `n_layers: [2, 4]` → `[2, 8]` | Best value at boundary and still improving. |
+| **Narrow** | `lr: [1e-5, 1e-1]` → `[1e-4, 1e-2]` | Best trials cluster in a sub-range AND both sides to be discarded were actually sampled (`statistics.axis_coverage.<p>` confirms). |
+| **Shift** | `batch_size: [8, 64]` → `[32, 256]` | Best trials hit the upper boundary (sampled — `boundary_hits.<p>.high > 0` or `axis_coverage.<p>.sampled_max ≈ high`). |
+| **Expand / Re-open** | `n_layers: [2, 4]` → `[2, 8]` | Best value at a sampled boundary and still improving; **or** a prior narrowing rationale is invalidated by a coverage gap / UNSAMPLED EDGE surfaced by `axis_coverage`. |
+| **Hold** | `lr: [1e-4, 1e-2]` unchanged | One or more edges are UNSAMPLED and no other evidence supports a change — let the next round sample them. |
+| **Exploration round** | Switch `sampler` to `RandomSampler` for one round | Multiple UNSAMPLED EDGEs across the search space, or post-narrow coverage collapse. Revert to TPE / CMA-ES in the round after. |
 | **Freeze** | `dropout` removed, fixed at 0.1 | Low importance, high variance-cost. |
 | **Split** | One study → two studies | Two clear clusters in parallel-coords. |
 | **Add** | Introduce a new param | Ablation suggests a missing axis. |
 
 Each action MUST be justified in `provenance.rationale` with a reference to
-the relevant bundle field (`param_importances`, `statistics`, `top_trials`,
-etc.). See [`anti_patterns.md`](anti_patterns.md) for unjustified changes.
+the relevant bundle field (`param_importances`, `statistics.boundary_hits`,
+`statistics.axis_coverage`, `top_trials`, …). See
+[`anti_patterns.md`](anti_patterns.md) for unjustified changes; in
+particular, [`anti_patterns.md#a10`](anti_patterns.md) forbids narrowing
+against an UNSAMPLED EDGE (a boundary where
+`axis_coverage.<p>.sampled_<side>` never reached the configured edge).
+
+### Coverage-driven re-open
+
+`Expand` is not only "ran out of room at the edge" — it is also the
+correct action when a previous round's **narrow** was justified by
+`boundary_hits` alone, and a new round's `axis_coverage` now reveals that
+the discarded side was never actually sampled. In that case the prior
+narrowing rationale is invalidated and the range should be widened back to
+(at least) its pre-narrow bounds, with the new evidence cited in
+`provenance.rationale`.
 
 ## 4. Provenance design
 
@@ -79,27 +95,36 @@ drift when a bundle is re-exported or hand-edited.
 
 ## 5. Adapter pattern
 
-The skill is deliberately thin. It ships **no** Python. The project-side
-adapter is expected to be small (~100 LOC) and look roughly like:
+The skill is deliberately thin. It ships a tiny set of canonical entry
+points in `scripts/round_adapter.py` so that bundle safety-enrichment
+(axis_coverage, coverage notes) happens **inside the package**, not on
+the adapter side. The project adapter is expected to be small
+(~100 LOC) and look roughly like:
 
 ```python
 # project/opt_adapter.py
 from pathlib import Path
 import hashlib, json, jsonschema
 
-SCHEMA_BUNDLE = json.loads(Path("schemas/study_bundle.schema.json").read_text())
+from scripts.round_adapter import (
+    build_study_bundle,   # construct + normalise + validate + (opt) write
+    load_study_bundle,    # read-back + safe-normalise
+    render_llm_input,     # canonical markdown renderer (coverage note baked in)
+)
+
 SCHEMA_CONFIG = json.loads(Path("schemas/next_round_config.schema.json").read_text())
 
 def export_study_bundle(study, round_id: str, out_path: Path) -> dict:
-    bundle = {
+    raw = {
         "schema_version": "1.0",
         "round_id": round_id,
         "study_id": study.study_name,
         # … populate per schema …
     }
-    jsonschema.validate(bundle, SCHEMA_BUNDLE)
-    out_path.write_text(json.dumps(bundle, indent=2, sort_keys=True))
-    return bundle
+    # build_study_bundle owns axis_coverage injection AND coverage-note
+    # generation — the adapter does not call inject_axis_coverage by
+    # hand or author a coverage_note helper on the template side.
+    return build_study_bundle(raw, out_path=out_path)
 
 def validate_and_hash(cfg_path: Path) -> str:
     cfg = json.loads(cfg_path.read_text())
@@ -113,7 +138,9 @@ def apply_next_round_config(cfg: dict) -> "optuna.Study":
 ```
 
 Everything project-specific (dataset loading, objective, logging) stays in
-the project repo. The skill stays generic.
+the project repo. The skill stays generic AND owns every step that the
+LLM analyst later depends on for boundary-hit disambiguation — there is
+no coverage helper the adapter has to author.
 
 ## 6. Stop conditions
 

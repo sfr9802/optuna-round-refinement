@@ -63,6 +63,12 @@
       "chunk_size":    { "low": 1, "high": 2 },
       "chunk_overlap": { "low": 2, "high": 3 },
       "temperature":   { "low": 6, "high": 1 }
+    },
+    "axis_coverage": {
+      "top_k":         { "sampled_min": 3,   "sampled_max": 14,   "unique_count": 10, "note": "lower edge UNSAMPLED; upper edge UNSAMPLED" },
+      "chunk_size":    { "sampled_min": 256, "sampled_max": 832,  "unique_count": 9,  "note": "lower edge UNSAMPLED; upper edge UNSAMPLED" },
+      "chunk_overlap": { "sampled_min": 0.1, "sampled_max": 0.4,  "unique_count": 8,  "note": "lower edge UNSAMPLED; upper edge UNSAMPLED" },
+      "temperature":   { "sampled_min": 0.0, "sampled_max": 0.9,  "unique_count": 14, "note": "upper edge UNSAMPLED" }
     }
   },
   "param_importances": {

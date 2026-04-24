@@ -108,7 +108,7 @@ provenance:
       target: "learning_rate"
       before: { type: "float", low: 1.0e-4, high: 1.0e-2, log: true }
       after:  { type: "float", low: 5.0e-4, high: 5.0e-3, log: true }
-      evidence: "top_trials span learning_rate in [1.2e-3, 2.5e-3]; boundary_hits.learning_rate.low=1 and .high=1 both in PRUNED/FAIL"
+      evidence: "top_trials span learning_rate in [1.2e-3, 2.5e-3]; statistics.axis_coverage.learning_rate.sampled_min=6e-4, sampled_max=3e-3 (completes stayed inside the new band); boundary_hits.learning_rate.low=1 and .high=1 are both PRUNED/FAIL (attempted-but-weak at both configured edges)"
     - action: "narrow"
       target: "hidden_units"
       before: { type: "categorical", choices: [64, 128, 256, 512] }
@@ -118,12 +118,12 @@ provenance:
       target: "num_layers"
       before: { type: "int", low: 1, high: 4 }
       after:  { type: "int", low: 2, high: 3 }
-      evidence: "top-4 cluster uses num_layers in {2, 3}; boundary_hits.num_layers.high=3 all in PRUNED/FAIL; low=3 mostly low-AUC"
+      evidence: "top-4 cluster uses num_layers in {2, 3}; statistics.axis_coverage.num_layers.sampled_min=1, sampled_max=3; boundary_hits.num_layers.high=3 are all PRUNED/FAIL (attempted-but-weak at num_layers=4, the upper edge); boundary_hits.num_layers.low=3 are mostly low-AUC COMPLETE (sampled-but-poor at num_layers=1, the lower edge)"
     - action: "narrow"
       target: "dropout"
       before: { type: "float", low: 0.0, high: 0.5 }
       after:  { type: "float", low: 0.0, high: 0.25 }
-      evidence: "top-5 trials span dropout in [0.05, 0.20]; boundary_hits.dropout.high=2 only in PRUNED/FAIL"
+      evidence: "top-5 trials span dropout in [0.05, 0.20]; statistics.axis_coverage.dropout.sampled_min=0.05, sampled_max=0.35; boundary_hits.dropout.high=2 only in PRUNED/FAIL (attempted-but-weak at upper edge); lower edge is UNSAMPLED with boundary_hits.dropout.low=0, so the new lower bound stays at 0.0 — no narrow against the never-tried edge (see docs/anti_patterns.md#a10)"
 
 notes: |
   Freezing optimizer and activation is a "large change" per

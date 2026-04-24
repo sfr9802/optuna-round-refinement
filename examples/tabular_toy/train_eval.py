@@ -33,8 +33,20 @@ import yaml
 from sklearn.metrics import roc_auc_score
 from torch.utils.data import DataLoader, TensorDataset
 
+import sys
+
 from dataset import TabularSplit, load_tabular_split
 from model import SimpleMLP
+
+# The skill ships the canonical bundle constructor at
+# scripts/round_adapter.py::build_study_bundle. It owns axis_coverage
+# injection and coverage-note generation so downstream adapters do NOT
+# need to call inject_axis_coverage or author a coverage_note helper
+# themselves — a single call to build_study_bundle is sufficient.
+_SKILL_ROOT = Path(__file__).resolve().parents[2]
+if str(_SKILL_ROOT) not in sys.path:
+    sys.path.insert(0, str(_SKILL_ROOT))
+from scripts.round_adapter import build_study_bundle  # noqa: E402
 
 
 def set_seed(seed: int) -> None:
@@ -213,7 +225,7 @@ def export_bundle(study: optuna.Study, cfg: Dict[str, Any]) -> Dict[str, Any]:
         stats["boundary_hits"] = boundary
 
     best = study.best_trial
-    bundle: Dict[str, Any] = {
+    raw: Dict[str, Any] = {
         "schema_version": "1.0",
         "round_id": cfg["round_id"],
         "study_id": study.study_name,
@@ -237,8 +249,10 @@ def export_bundle(study: optuna.Study, cfg: Dict[str, Any]) -> Dict[str, Any]:
     }
     importances = _param_importances(study)
     if importances:
-        bundle["param_importances"] = importances
-    return bundle
+        raw["param_importances"] = importances
+    # The skill's canonical constructor owns axis_coverage injection AND
+    # coverage-note generation; the adapter does not call either by hand.
+    return build_study_bundle(raw)
 
 
 def run_study(config_path: Path, out_bundle: Path) -> Dict[str, Any]:

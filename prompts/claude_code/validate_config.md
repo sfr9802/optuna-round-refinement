@@ -26,9 +26,16 @@ rewrite it — produce a verdict.
 - [ ] every entry in `diff_summary` has a non-empty `evidence` string
 - [ ] each `evidence` string names a field that actually exists in the
       bundle (`param_importances.<x>`, `statistics.boundary_hits.<x>.*`,
-      `top_trials[*]`, …)
+      `statistics.axis_coverage.<x>.*`, `top_trials[*]`, …)
 - [ ] no `diff_summary` entry is an "unjustified change" (see
       `docs/anti_patterns.md` A8)
+- [ ] **every `narrow` row's evidence cites `statistics.axis_coverage.<p>`**
+      alongside `boundary_hits` / `top_trials`. A `narrow` justified
+      solely by `boundary_hits.<p>.<side> == 0` against an UNSAMPLED
+      EDGE is a hard fail (see `docs/anti_patterns.md` A10). If the
+      source bundle lacks `statistics.axis_coverage` (legacy), any
+      `narrow` whose evidence relies on `boundary_hits` alone is a hard
+      fail.
 
 ### Anti-patterns (hard prohibitions)
 - [ ] no Python, Optuna API calls, or executable code in the draft

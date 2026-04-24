@@ -1,18 +1,18 @@
 # Tabular toy — PyTorch HPO example
 
 A small, illustrative round-level HPO example built on **PyTorch** and
-Optuna, produced as a portability demonstration: the round-level
+Optuna, produced as an illustrative portability demo: the round-level
 refinement artifact flow (`study_bundle.json` → analyst report →
-`next_round_config`) is a framework-agnostic artifact contract, and this
-example shows that it accepts a second unrelated domain (PyTorch tabular
-HPO) without schema changes.
+`next_round_config`) has a published schema/example set, and this
+example shows the same artifact shape on a second unrelated example
+(PyTorch tabular HPO) using the existing schemas/examples.
 
 > **Scope.** This is an *illustrative* example. It is **not** a claim of
 > broad ML/DL empirical validation, a benchmark, or a production-ready
 > deep learning HPO setup. It exists to show that the same round-level
-> artifact contract used by the RAG example is framework-agnostic and
-> can carry a PyTorch tabular study without changes to the schemas,
-> prompts, or templates.
+> artifact contract used by the RAG example supports a second example
+> domain (PyTorch tabular) in the published schemas, prompts, and
+> templates.
 
 ## What this example demonstrates
 
@@ -99,8 +99,10 @@ should finish in a few minutes on a modern laptop CPU.
 The round 02 transition follows the same workflow as the RAG example:
 
 1. Render [`study_bundle.json`](study_bundle.json) into markdown with
-   [`../../templates/llm_input.md`](../../templates/llm_input.md) using
-   your project-side adapter.
+   the skill's canonical renderer
+   [`../../scripts/round_adapter.py::render_llm_input`](../../scripts/round_adapter.py)
+   (which fills [`../../templates/llm_input.md`](../../templates/llm_input.md)
+   and bakes the coverage-note column in from the bundle).
 2. Run the analyst prompt from
    [`../../prompts/claude_code/propose_next_round.md`](../../prompts/claude_code/propose_next_round.md)
    (or the Codex variant) on that rendered markdown.
@@ -145,13 +147,13 @@ particular:
 The `rag_example/` and `tabular_toy/` directories together show two
 different domains (RAG pipeline configuration, PyTorch tabular HPO)
 producing the **same three artifacts** against the **same two JSON
-schemas**. That is the only claim this example makes: the artifact
-contract is framework-agnostic and designed to generalise — this toy
-serves as an illustrative portability demonstration, not evidence that
-it does. Anything further — that the analyst's proposals generalise
-well, that the skill is production-safe for deep learning HPO, or that
-round-level refinement beats any particular baseline — is out of scope
-here.
+schemas**. That is the only claim this example makes: the published
+artifact contract supports a second example domain in the
+schemas/examples — this toy serves as an illustrative portability
+demo, not evidence that the contract generalises broadly. Anything
+further — that the analyst's proposals generalise well, that the skill
+is production-safe for deep learning HPO, or that round-level
+refinement beats any particular baseline — is out of scope here.
 
 Only the `rag_example/` workflow is treated as the currently validated
 example. The `tabular_toy/` directory is illustrative only.
